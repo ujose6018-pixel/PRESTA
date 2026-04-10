@@ -4,6 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PrestaControl - Gestión de Préstamos</title>
+    
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#15803d">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="PrestaControl">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2489/2489756.png">
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -120,24 +130,30 @@
         import { getFirestore, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- CONFIGURACIÓN DE FIREBASE ---
-        const getFirebaseConfig = () => {
-            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-                return JSON.parse(__firebase_config);
+        /*
+        REGLAS DE FIRESTORE (Copiar en consola Firebase):
+        rules_version = '2';
+        service cloud.firestore {
+          match /databases/{database}/documents {
+            match /{document=**} {
+              allow read, write: if request.time < timestamp.date(2030, 5, 9);
             }
-            return {
-                apiKey: "AIzaSyAnLru6yhw9huXN25LV4kGmCfXL843o4TA",
-                authDomain: "presta-57302.firebaseapp.com",
-                projectId: "presta-57302",
-                storageBucket: "presta-57302.firebasestorage.app",
-                messagingSenderId: "636802344217",
-                appId: "1:636802344217:web:46fa0418609d69eb841188"
-            };
+          }
+        }
+        */
+        const firebaseConfig = {
+            apiKey: "AIzaSyAnLru6yhw9huXN25LV4kGmCfXL843o4TA",
+            authDomain: "presta-57302.firebaseapp.com",
+            projectId: "presta-57302",
+            storageBucket: "presta-57302.firebasestorage.app",
+            messagingSenderId: "636802344217",
+            appId: "1:636802344217:web:46fa0418609d69eb841188"
         };
 
-        const app = initializeApp(getFirebaseConfig());
+        const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'presta-57302';
+        const appId = 'presta-57302';
 
         // --- CLAVE MAESTRA DE ELIMINACIÓN ---
         const DELETE_KEY = "2026";
@@ -163,27 +179,35 @@
         // --- INICIALIZACIÓN ---
         async function initApp() {
             try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
+                // Configuración de Auth: Intenta iniciar sesión anónimamente
+                // Esto es necesario para poder escribir en Firestore si las reglas lo permiten.
+                await signInAnonymously(auth);
+                console.log("Firebase Auth: Autenticado como usuario anónimo.");
             } catch (error) {
-                document.getElementById('loading-text').innerText = "Error de conexión. Recarga la página.";
-                document.getElementById('loading-text').classList.add("text-red-500");
-                console.error("Auth error:", error);
+                console.error("Firebase Auth Error:", error);
+                const loadingText = document.getElementById('loading-text');
+                loadingText.innerHTML = `Error de conexión: ${error.message}<br><span class="text-sm font-normal">Verifica tu conexión a internet o la configuración de Firebase.</span>`;
+                loadingText.classList.add("text-red-600");
+                return; // Detener inicialización si falla la autenticación
             }
 
             onAuthStateChanged(auth, (user) => {
                 if (user) {
                     currentUser = user;
+                    console.log("Sesión activa:", user.uid);
+                    
+                    // Ocultar pantalla de carga
                     document.getElementById('loading-screen').classList.add('hidden');
                     document.getElementById('app-content').classList.remove('hidden');
                     
                     // Inicializar fecha en el formulario
                     document.getElementById('startDate').value = new Date().toISOString().split('T')[0];
                     
+                    // Cargar datos de préstamos
                     loadData();
+                } else {
+                    console.warn("No hay usuario autenticado.");
+                    document.getElementById('loading-text').innerText = "Iniciando sesión...";
                 }
             });
         }
@@ -198,7 +222,9 @@
                 globalLoans.sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
                 
                 // Actualizar la vista actual
-                const activeView = document.getElementById('view-detail').classList.contains('hidden') === false ? 'detail' : 'list';
+                const detailView = document.getElementById('view-detail');
+                const activeView = detailView && !detailView.classList.contains('hidden') ? 'detail' : 'list';
+                
                 if (activeView === 'list') {
                     renderList();
                 } else if (activeView === 'detail' && activeLoanId) {
@@ -207,7 +233,12 @@
                     else window.showView('list');
                 }
             }, (error) => {
-                console.error("Error cargando datos:", error);
+                console.error("Firestore Error (Carga de datos):", error);
+                if (error.code === 'permission-denied') {
+                    alert("Error: No tienes permisos para leer los datos. Revisa tus reglas de Firestore.");
+                } else {
+                    alert("Error al cargar datos: " + error.message);
+                }
             });
         }
 
@@ -514,6 +545,15 @@
 
         // Iniciar la app
         initApp();
+
+        // --- REGISTRO DE SERVICE WORKER PARA PWA ---
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then((reg) => console.log('Service Worker registrado con éxito.', reg.scope))
+                    .catch((err) => console.warn('Fallo al registrar el Service Worker.', err));
+            });
+        }
     </script>
 </body>
 </html>

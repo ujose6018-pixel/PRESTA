@@ -1,0 +1,23 @@
+{
+  "name": "PrestaControl - Gestión de Préstamos",
+  "short_name": "PrestaControl",
+  "description": "Aplicación para gestionar préstamos y cobros de forma sencilla.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#15803d",
+  "theme_color": "#15803d",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2489/2489756.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2489/2489756.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
