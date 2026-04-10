@@ -160,8 +160,8 @@
         rules_version = '2';
         service cloud.firestore {
           match /databases/{database}/documents {
-            match /loans/{loanId} {
-              allow read, write: if request.time < timestamp.date(2030, 5, 9);
+            match /{document=**} {
+              allow read, write: if true;
             }
           }
         }
@@ -179,14 +179,8 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // Habilitar persistencia offline para mayor estabilidad
-        enableIndexedDbPersistence(db).catch((err) => {
-            if (err.code == 'failed-precondition') {
-                console.warn("Persistencia falló: múltiples pestañas abiertas.");
-            } else if (err.code == 'unimplemented') {
-                console.warn("Persistencia no soportada por el navegador.");
-            }
-        });
+        // COMENTADO TEMPORALMENTE: La persistencia offline puede ocultar errores de sincronización real
+        // enableIndexedDbPersistence(db).catch((err) => { ... });
 
         // --- CLAVE MAESTRA DE ELIMINACIÓN ---
         const DELETE_KEY = "2026";
@@ -680,20 +674,23 @@
 
                 const docRef = await Promise.race([savePromise, timeoutPromise]);
                 
-                console.log("¡Préstamo guardado exitosamente!", docRef.id);
+                console.log("¡Préstamo guardado exitosamente en la nube!", docRef.id);
                 // Redirigir directamente al detalle del préstamo recién creado
                 window.showView('detail', docRef.id);
                 
             } catch (error) {
-                console.error("Error detallado al guardar:", error);
-                let msg = "No se pudo guardar el préstamo.";
+                console.error("ERROR CRÍTICO AL GUARDAR EN FIRESTORE:", error);
+                console.log("Código de error:", error.code);
+                console.log("Detalles del error:", error.message);
                 
-                if (error.message.includes("permission-denied")) {
-                    msg = "Error de Permisos: Revisa que tus Reglas de Firestore en la consola de Firebase sean correctas.";
-                } else if (error.message.includes("quota-exceeded")) {
-                    msg = "Error: Has superado la cuota gratuita de Firebase.";
+                let msg = "No se pudo guardar el préstamo en la base de datos.";
+                
+                if (error.message.includes("permission-denied") || error.code === 'permission-denied') {
+                    msg = "ERROR DE PERMISOS: La base de datos rechazó el guardado. Asegúrate de haber publicado las reglas 'allow read, write: if true;' en la consola de Firebase.";
+                } else if (error.message.includes("network") || error.code === 'unavailable') {
+                    msg = "ERROR DE RED: No hay conexión con los servidores de Firebase. Los datos NO se han guardado.";
                 } else {
-                    msg = `Error: ${error.message}`;
+                    msg = `Error técnico: ${error.message}. Por favor, revisa la consola del navegador para más detalles.`;
                 }
                 
                 alert(msg);
