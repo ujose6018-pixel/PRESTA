@@ -179,16 +179,33 @@
         // --- INICIALIZACIÓN ---
         async function initApp() {
             try {
-                // Configuración de Auth: Intenta iniciar sesión anónimamente
-                // Esto es necesario para poder escribir en Firestore si las reglas lo permiten.
+                // Intento de autenticación anónima
                 await signInAnonymously(auth);
                 console.log("Firebase Auth: Autenticado como usuario anónimo.");
             } catch (error) {
                 console.error("Firebase Auth Error:", error);
                 const loadingText = document.getElementById('loading-text');
-                loadingText.innerHTML = `Error de conexión: ${error.message}<br><span class="text-sm font-normal">Verifica tu conexión a internet o la configuración de Firebase.</span>`;
+                
+                if (error.code === 'auth/configuration-not-found') {
+                    loadingText.innerHTML = `
+                        <div class="bg-red-50 p-6 rounded-xl border border-red-200 text-left max-w-md mx-auto">
+                            <h3 class="text-red-800 font-bold mb-2">¡Configuración Faltante!</h3>
+                            <p class="text-red-700 text-sm mb-4">Debes activar el inicio de sesión anónimo en tu consola de Firebase:</p>
+                            <ol class="list-decimal list-inside text-xs text-red-600 space-y-2 mb-4">
+                                <li>Ve a <a href="https://console.firebase.google.com/" target="_blank" class="underline font-bold">Firebase Console</a></li>
+                                <li>Entra en <strong>Authentication</strong> &gt; <strong>Sign-in method</strong></li>
+                                <li>Haz clic en <strong>Add new provider</strong></li>
+                                <li>Selecciona <strong>Anonymous</strong> y actívalo (Enable)</li>
+                                <li>Recarga esta página</li>
+                            </ol>
+                            <button onclick="location.reload()" class="w-full bg-red-600 text-white py-2 rounded-lg font-bold hover:bg-red-700 transition-colors">Ya lo activé, Recargar</button>
+                        </div>
+                    `;
+                } else {
+                    loadingText.innerHTML = `Error de conexión: ${error.message}<br><span class="text-sm font-normal">Verifica tu conexión a internet o la configuración de Firebase.</span>`;
+                }
                 loadingText.classList.add("text-red-600");
-                return; // Detener inicialización si falla la autenticación
+                return; 
             }
 
             onAuthStateChanged(auth, (user) => {
@@ -196,14 +213,10 @@
                     currentUser = user;
                     console.log("Sesión activa:", user.uid);
                     
-                    // Ocultar pantalla de carga
                     document.getElementById('loading-screen').classList.add('hidden');
                     document.getElementById('app-content').classList.remove('hidden');
                     
-                    // Inicializar fecha en el formulario
                     document.getElementById('startDate').value = new Date().toISOString().split('T')[0];
-                    
-                    // Cargar datos de préstamos
                     loadData();
                 } else {
                     console.warn("No hay usuario autenticado.");
