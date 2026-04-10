@@ -156,12 +156,12 @@
 
         // --- CONFIGURACIÓN DE FIREBASE ---
         /*
-        REGLAS DE FIRESTORE (Copiar en consola Firebase):
+        REGLAS DE FIRESTORE SIMPLIFICADAS (Copiar en consola Firebase):
         rules_version = '2';
         service cloud.firestore {
           match /databases/{database}/documents {
             match /{document=**} {
-              allow read, write: if true;
+              allow read, write: if request.time < timestamp.date(2035, 5, 9);
             }
           }
         }
@@ -179,8 +179,14 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // COMENTADO TEMPORALMENTE: La persistencia offline puede ocultar errores de sincronización real
-        // enableIndexedDbPersistence(db).catch((err) => { ... });
+        // Habilitar persistencia offline para mayor estabilidad
+        enableIndexedDbPersistence(db).catch((err) => {
+            if (err.code == 'failed-precondition') {
+                console.warn("Persistencia falló: múltiples pestañas abiertas.");
+            } else if (err.code == 'unimplemented') {
+                console.warn("Persistencia no soportada por el navegador.");
+            }
+        });
 
         // --- CLAVE MAESTRA DE ELIMINACIÓN ---
         const DELETE_KEY = "2026";
