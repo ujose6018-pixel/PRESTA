@@ -47,10 +47,16 @@
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
                     <h1 class="text-xl font-bold tracking-wide">PrestaControl</h1>
                 </div>
-                <button id="btn-new-loan" onclick="window.showView('add')" class="bg-green-500 hover:bg-green-400 text-white px-4 py-2 rounded-full font-medium flex items-center gap-2 transition-colors shadow-sm">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-                    <span class="hidden sm:inline">Nuevo Préstamo</span>
-                </button>
+                <div class="flex items-center gap-3">
+                    <button id="btn-install-pwa" class="hidden bg-white/20 hover:bg-white/30 text-white px-3 py-2 rounded-full text-xs font-bold transition-colors flex items-center gap-1 border border-white/30">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        Instalar App
+                    </button>
+                    <button id="btn-new-loan" onclick="window.showView('add')" class="bg-green-500 hover:bg-green-400 text-white px-4 py-2 rounded-full font-medium flex items-center gap-2 transition-colors shadow-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                        <span class="hidden sm:inline">Nuevo Préstamo</span>
+                    </button>
+                </div>
             </div>
         </nav>
 
@@ -127,7 +133,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc, query, where, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- CONFIGURACIÓN DE FIREBASE ---
         /*
@@ -135,7 +141,7 @@
         rules_version = '2';
         service cloud.firestore {
           match /databases/{database}/documents {
-            match /{document=**} {
+            match /loans/{loanId} {
               allow read, write: if request.time < timestamp.date(2030, 5, 9);
             }
           }
@@ -153,7 +159,15 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const appId = 'presta-57302';
+
+        // Habilitar persistencia offline para mayor estabilidad
+        enableIndexedDbPersistence(db).catch((err) => {
+            if (err.code == 'failed-precondition') {
+                console.warn("Persistencia falló: múltiples pestañas abiertas.");
+            } else if (err.code == 'unimplemented') {
+                console.warn("Persistencia no soportada por el navegador.");
+            }
+        });
 
         // --- CLAVE MAESTRA DE ELIMINACIÓN ---
         const DELETE_KEY = "2026";
@@ -229,8 +243,11 @@
         function loadData() {
             if (unsubscribeSnapshot) unsubscribeSnapshot();
 
-            const loansRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'loans');
-            unsubscribeSnapshot = onSnapshot(loansRef, (snapshot) => {
+            // Usar colección 'loans' filtrada por userId para mayor estabilidad
+            const loansRef = collection(db, 'loans');
+            const q = query(loansRef, where("userId", "==", currentUser.uid));
+            
+            unsubscribeSnapshot = onSnapshot(q, (snapshot) => {
                 globalLoans = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 globalLoans.sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
                 
@@ -248,7 +265,7 @@
             }, (error) => {
                 console.error("Firestore Error (Carga de datos):", error);
                 if (error.code === 'permission-denied') {
-                    alert("Error: No tienes permisos para leer los datos. Revisa tus reglas de Firestore.");
+                    alert("Error: No tienes permisos para leer los datos. Asegúrate de que Firestore esté habilitado en la consola y las reglas sean correctas.");
                 } else {
                     alert("Error al cargar datos: " + error.message);
                 }
@@ -295,9 +312,37 @@
                 return;
             }
 
-            let html = `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">`;
+            // Dashboard Resumen
+            const totalCapital = globalLoans.reduce((acc, loan) => acc + parseFloat(loan.currentCapital || 0), 0);
+            const totalInterestExpected = globalLoans.reduce((acc, loan) => {
+                const pendingQuotas = (loan.quotas || []).filter(q => q.status === 'pending');
+                if (pendingQuotas.length > 0) {
+                    const nextQuota = pendingQuotas[0];
+                    const baseInterest = (parseFloat(loan.currentCapital || 0) * parseFloat(loan.interestRate || 0)) / 100;
+                    return acc + (baseInterest * (nextQuota.interestMultiplier || 1));
+                }
+                return acc;
+            }, 0);
+
+            let html = `
+            <!-- Dashboard Resumen -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                    <p class="text-slate-500 text-sm font-medium">Capital Total en Calle</p>
+                    <p class="text-3xl font-bold text-slate-800">${formatCurrency(totalCapital)}</p>
+                </div>
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                    <p class="text-slate-500 text-sm font-medium">Próximos Cobros Proyectados</p>
+                    <p class="text-3xl font-bold text-green-600">${formatCurrency(totalInterestExpected)}</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">`;
             globalLoans.forEach(loan => {
-                const interest = (parseFloat(loan.currentCapital) * parseFloat(loan.interestRate)) / 100;
+                const pendingQuotas = (loan.quotas || []).filter(q => q.status === 'pending');
+                const nextQuota = pendingQuotas.length > 0 ? pendingQuotas[0] : null;
+                const baseInterest = (parseFloat(loan.currentCapital) * parseFloat(loan.interestRate)) / 100;
+                const nextInterest = nextQuota ? (baseInterest * (nextQuota.interestMultiplier || 1)) : baseInterest;
                 
                 html += `
                 <div onclick="window.showView('detail', '${loan.id}')" class="bg-white rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow cursor-pointer border border-slate-200 hover:border-green-300">
@@ -313,8 +358,8 @@
                             <span class="font-semibold text-slate-800">${formatCurrency(loan.currentCapital)}</span>
                         </div>
                         <div class="flex justify-between">
-                            <span class="text-slate-500">Cuota Esperada:</span>
-                            <span class="font-medium text-blue-600">${formatCurrency(interest)}</span>
+                            <span class="text-slate-500">Próximo Cobro:</span>
+                            <span class="font-medium text-blue-600">${formatCurrency(nextInterest)}</span>
                         </div>
                     </div>
                 </div>`;
@@ -327,15 +372,21 @@
         function renderDetail(loan) {
             const container = document.getElementById('view-detail');
             const currentCapital = parseFloat(loan.currentCapital);
-            const interest = (currentCapital * parseFloat(loan.interestRate)) / 100;
-            const commission = (interest * parseFloat(loan.commissionRate || 0)) / 100;
-            const netAmount = interest - commission;
+            const baseInterest = (currentCapital * parseFloat(loan.interestRate)) / 100;
+            
+            // Buscar la próxima cuota pendiente para el detalle
+            const pendingQuotas = (loan.quotas || []).filter(q => q.status === 'pending');
+            const nextQuota = pendingQuotas.length > 0 ? pendingQuotas[0] : null;
+            const nextInterest = nextQuota ? (baseInterest * (nextQuota.interestMultiplier || 1)) : baseInterest;
+            const nextCommission = (nextInterest * parseFloat(loan.commissionRate || 0)) / 100;
+            const nextNet = nextInterest - nextCommission;
 
             // Generar el HTML del Calendario
             let quotasHtml = '';
             if (loan.quotas && loan.quotas.length > 0) {
                 loan.quotas.forEach(quota => {
                     const isPaid = quota.status === 'paid';
+                    const quotaInterest = baseInterest * (quota.interestMultiplier || 1);
                     const bgClass = isPaid ? 'bg-green-50 border-green-400' : 'bg-red-50 border-red-200';
                     const textMonthClass = isPaid ? 'text-green-600' : 'text-slate-500';
                     const textDayClass = isPaid ? 'text-green-700' : 'text-red-600';
@@ -348,7 +399,7 @@
                         <div class="text-xs uppercase font-bold ${textMonthClass}">${getMonthShort(quota.date)}</div>
                         <div class="text-3xl font-black ${textDayClass} my-1">${getDay(quota.date)}</div>
                         <div class="text-xs font-bold ${statusColor} mb-1">${statusText}</div>
-                        <div class="text-xs font-medium text-slate-700 bg-white/50 rounded py-1">${formatCurrency(interest)}</div>
+                        <div class="text-xs font-medium text-slate-700 bg-white/50 rounded py-1">${formatCurrency(quotaInterest)}</div>
                     </div>`;
                 });
             } else {
@@ -387,19 +438,19 @@
                                     <span class="text-xl font-bold text-blue-700">${formatCurrency(currentCapital)}</span>
                                 </div>
                                 
-                                <h3 class="text-sm font-bold text-slate-700 mt-4">Detalle de Cuota (${loan.frequency})</h3>
+                                <h3 class="text-sm font-bold text-slate-700 mt-4">Detalle de Próximo Cobro</h3>
                                 <div class="flex justify-between text-sm">
-                                    <span class="text-slate-500">Cobro al cliente:</span>
-                                    <span class="font-semibold text-slate-800">${formatCurrency(interest)}</span>
+                                    <span class="text-slate-500">Monto Bruto:</span>
+                                    <span class="font-semibold text-slate-800">${formatCurrency(nextInterest)}</span>
                                 </div>
                                 ${loan.intermediaryName ? `
                                 <div class="flex justify-between text-sm text-orange-600">
                                     <span>Comisión intermediario:</span>
-                                    <span class="font-semibold">- ${formatCurrency(commission)}</span>
+                                    <span class="font-semibold">- ${formatCurrency(nextCommission)}</span>
                                 </div>` : ''}
                                 <div class="flex justify-between items-center bg-green-50 p-3 rounded-lg mt-2">
                                     <span class="font-bold text-green-800">Monto Neto a Recibir:</span>
-                                    <span class="text-lg font-bold text-green-700">${formatCurrency(netAmount)}</span>
+                                    <span class="text-lg font-bold text-green-700">${formatCurrency(nextNet)}</span>
                                 </div>
                             </div>
                         </div>
@@ -434,19 +485,61 @@
 
         // --- ACCIONES DEL USUARIO ---
 
-        // Generador de fechas para cuotas
-        function generateQuotas(startDate, frequency, numQuotas = 20) {
+        // Generador de fechas para cuotas con lógica de fechas fijas y promediado
+        function generateQuotas(startDate, frequency, numQuotas = 24) {
             const quotas = [];
-            let currentDate = new Date(startDate + 'T00:00:00'); // Evita desfase horario
-            
+            const start = new Date(startDate + 'T00:00:00');
+            let currentDate = new Date(start);
+
             for(let i = 1; i <= numQuotas; i++) {
-                // Añadir días según la frecuencia
-                currentDate.setDate(currentDate.getDate() + (frequency === 'quincenal' ? 15 : 7));
+                let nextDate = new Date(currentDate);
+                let isFirst = i === 1;
+
+                if (frequency === 'quincenal') {
+                    // Lógica 1 y 16 de cada mes
+                    const day = nextDate.getDate();
+                    if (day < 16 && day >= 1) {
+                        // Si es antes del 16, la próxima es el 16 del mismo mes
+                        nextDate.setDate(16);
+                    } else {
+                        // Si es 16 o más, la próxima es el 1 del mes siguiente
+                        nextDate.setMonth(nextDate.getMonth() + 1);
+                        nextDate.setDate(1);
+                    }
+                } else {
+                    // Lógica Semanal: Próximo Domingo
+                    const daysUntilSunday = (7 - nextDate.getDay()) % 7;
+                    const addDays = (daysUntilSunday === 0 && !isFirst) ? 7 : daysUntilSunday;
+                    // Si el día de entrega ya es domingo, el primer pago es el siguiente domingo
+                    const actualAdd = (isFirst && nextDate.getDay() === 0) ? 7 : (addDays === 0 && isFirst ? 7 : addDays);
+                    nextDate.setDate(nextDate.getDate() + (actualAdd || 7));
+                }
+
+                // Cálculo de Promedio (Pro-rate) para la primera cuota
+                let interestMultiplier = 1;
+                if (isFirst) {
+                    const diffTime = Math.abs(nextDate - start);
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    
+                    if (frequency === 'quincenal') {
+                        // Una quincena promedio tiene 15 días
+                        interestMultiplier = diffDays / 15;
+                    } else {
+                        // Una semana tiene 7 días
+                        interestMultiplier = diffDays / 7;
+                    }
+                    // No cobrar más de una cuota completa si el desfase es grande
+                    if (interestMultiplier > 1) interestMultiplier = 1;
+                }
+
                 quotas.push({
                     id: 'q_' + Date.now() + '_' + i,
-                    date: currentDate.toISOString().split('T')[0],
-                    status: 'pending'
+                    date: nextDate.toISOString().split('T')[0],
+                    status: 'pending',
+                    interestMultiplier: interestMultiplier
                 });
+                
+                currentDate = new Date(nextDate);
             }
             return quotas;
         }
@@ -455,6 +548,15 @@
         document.getElementById('form-add-loan').addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = document.getElementById('btn-save-loan');
+            const originalText = btn.innerText;
+            
+            // Validación de sesión
+            if (!currentUser) {
+                alert("No hay una sesión activa. Por favor, recarga la página.");
+                console.error("Save Error: currentUser is null");
+                return;
+            }
+
             btn.innerText = 'Guardando...';
             btn.disabled = true;
 
@@ -462,28 +564,59 @@
                 const startDate = document.getElementById('startDate').value;
                 const frequency = document.getElementById('frequency').value;
                 const initialCapital = parseFloat(document.getElementById('initialCapital').value);
+                const interestRate = parseFloat(document.getElementById('interestRate').value);
+                const commissionRate = parseFloat(document.getElementById('commissionRate').value || 0);
                 
+                // Validaciones básicas de negocio
+                if (isNaN(initialCapital) || initialCapital <= 0) throw new Error("El capital inicial debe ser un número positivo.");
+                if (isNaN(interestRate) || interestRate < 0) throw new Error("El interés debe ser un número válido.");
+
                 const newLoan = {
-                    clientName: document.getElementById('clientName').value,
-                    intermediaryName: document.getElementById('intermediaryName').value,
+                    clientName: document.getElementById('clientName').value.trim(),
+                    intermediaryName: document.getElementById('intermediaryName').value.trim(),
                     initialCapital: initialCapital,
                     currentCapital: initialCapital,
                     startDate: startDate,
                     frequency: frequency,
-                    interestRate: parseFloat(document.getElementById('interestRate').value),
-                    commissionRate: parseFloat(document.getElementById('commissionRate').value || 0),
-                    quotas: generateQuotas(startDate, frequency, 24), // Generar 24 cuotas proyectadas
-                    createdAt: new Date().toISOString()
+                    interestRate: interestRate,
+                    commissionRate: commissionRate,
+                    quotas: generateQuotas(startDate, frequency, 24), 
+                    createdAt: new Date().toISOString(),
+                    userId: currentUser.uid // Guardamos el ID por seguridad
                 };
 
-                const loansRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'loans');
-                await addDoc(loansRef, newLoan);
-                window.showView('list');
+                console.log("Intentando guardar préstamo en Firestore...", newLoan);
+                
+                // Usar colección 'loans' para mayor estabilidad
+                const loansRef = collection(db, 'loans');
+                
+                // Timeout manual por si Firestore se queda "colgado" (pasa en redes lentas)
+                const savePromise = addDoc(loansRef, newLoan);
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error("Tiempo de espera agotado. Revisa tu conexión o las reglas de Firebase.")), 10000)
+                );
+
+                const docRef = await Promise.race([savePromise, timeoutPromise]);
+                
+                console.log("¡Préstamo guardado exitosamente!", docRef.id);
+                // Redirigir directamente al detalle del préstamo recién creado
+                window.showView('detail', docRef.id);
+                
             } catch (error) {
-                console.error("Error guardando:", error);
-                alert("Error al guardar el préstamo.");
+                console.error("Error detallado al guardar:", error);
+                let msg = "No se pudo guardar el préstamo.";
+                
+                if (error.message.includes("permission-denied")) {
+                    msg = "Error de Permisos: Revisa que tus Reglas de Firestore en la consola de Firebase sean correctas.";
+                } else if (error.message.includes("quota-exceeded")) {
+                    msg = "Error: Has superado la cuota gratuita de Firebase.";
+                } else {
+                    msg = `Error: ${error.message}`;
+                }
+                
+                alert(msg);
             } finally {
-                btn.innerText = 'Guardar Préstamo';
+                btn.innerText = originalText;
                 btn.disabled = false;
             }
         });
@@ -497,7 +630,7 @@
             const updatedQuotas = loan.quotas.map(q => q.id === quotaId ? { ...q, status: newStatus } : q);
 
             try {
-                const loanRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'loans', loanId);
+                const loanRef = doc(db, 'loans', loanId);
                 // Actualización optimista
                 const quotaEl = event.currentTarget;
                 quotaEl.style.opacity = '0.5'; 
@@ -525,7 +658,7 @@
             }
 
             try {
-                const loanRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'loans', loanId);
+                const loanRef = doc(db, 'loans', loanId);
                 await updateDoc(loanRef, {
                     currentCapital: currentCapital - amount
                 });
@@ -543,7 +676,7 @@
             if (key === DELETE_KEY) {
                 if (confirm("¿Está TOTALMENTE seguro? Esta acción no se puede deshacer y borrará todo el historial de pagos.")) {
                     try {
-                        const loanRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'loans', loanId);
+                        const loanRef = doc(db, 'loans', loanId);
                         await deleteDoc(loanRef);
                         window.showView('list');
                     } catch (error) {
@@ -560,6 +693,9 @@
         initApp();
 
         // --- REGISTRO DE SERVICE WORKER PARA PWA ---
+        let deferredPrompt;
+        const installBtn = document.getElementById('btn-install-pwa');
+
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('./sw.js')
@@ -567,6 +703,35 @@
                     .catch((err) => console.warn('Fallo al registrar el Service Worker.', err));
             });
         }
+
+        // Manejo del evento de instalación
+        window.addEventListener('beforeinstallprompt', (e) => {
+            // Prevenir que el navegador lo muestre automáticamente
+            e.preventDefault();
+            // Guardar el evento para dispararlo luego
+            deferredPrompt = e;
+            // Mostrar nuestro botón personalizado
+            installBtn.classList.remove('hidden');
+        });
+
+        installBtn.addEventListener('click', async () => {
+            if (deferredPrompt) {
+                // Mostrar el prompt de instalación
+                deferredPrompt.prompt();
+                // Esperar la elección del usuario
+                const { outcome } = await deferredPrompt.userChoice;
+                console.log(`Usuario eligió la instalación: ${outcome}`);
+                // Limpiar la variable
+                deferredPrompt = null;
+                // Ocultar el botón
+                installBtn.classList.add('hidden');
+            }
+        });
+
+        window.addEventListener('appinstalled', (event) => {
+            console.log('¡App instalada con éxito!');
+            installBtn.classList.add('hidden');
+        });
     </script>
 </body>
 </html>
