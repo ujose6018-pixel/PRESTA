@@ -212,50 +212,35 @@
         // --- INICIALIZACIÓN ---
         async function initApp() {
             try {
-                // Intento de autenticación anónima
-                await signInAnonymously(auth);
-                console.log("Firebase Auth: Autenticado como usuario anónimo.");
+                // Intentar autenticación, pero no bloquear si falla (ya que se deshabilitó en consola)
+                await signInAnonymously(auth).catch(e => console.warn("Auth Anónima deshabilitada o fallida, continuando en modo público."));
             } catch (error) {
-                console.error("Firebase Auth Error:", error);
-                const loadingText = document.getElementById('loading-text');
-                
-                if (error.code === 'auth/configuration-not-found') {
-                    loadingText.innerHTML = `
-                        <div class="bg-red-50 p-6 rounded-xl border border-red-200 text-left max-w-md mx-auto">
-                            <h3 class="text-red-800 font-bold mb-2">¡Configuración Faltante!</h3>
-                            <p class="text-red-700 text-sm mb-4">Debes activar el inicio de sesión anónimo en tu consola de Firebase:</p>
-                            <ol class="list-decimal list-inside text-xs text-red-600 space-y-2 mb-4">
-                                <li>Ve a <a href="https://console.firebase.google.com/" target="_blank" class="underline font-bold">Firebase Console</a></li>
-                                <li>Entra en <strong>Authentication</strong> &gt; <strong>Sign-in method</strong></li>
-                                <li>Haz clic en <strong>Add new provider</strong></li>
-                                <li>Selecciona <strong>Anonymous</strong> y actívalo (Enable)</li>
-                                <li>Recarga esta página</li>
-                            </ol>
-                            <button onclick="location.reload()" class="w-full bg-red-600 text-white py-2 rounded-lg font-bold hover:bg-red-700 transition-colors">Ya lo activé, Recargar</button>
-                        </div>
-                    `;
-                } else {
-                    loadingText.innerHTML = `Error de conexión: ${error.message}<br><span class="text-sm font-normal">Verifica tu conexión a internet o la configuración de Firebase.</span>`;
-                }
-                loadingText.classList.add("text-red-600");
-                return; 
+                console.warn("Error inicial en Auth:", error);
             }
 
+            // Escuchar cambios de autenticación o simplemente cargar datos si no hay auth
             onAuthStateChanged(auth, (user) => {
-                if (user) {
-                    currentUser = user;
-                    console.log("Sesión activa:", user.uid);
-                    
+                currentUser = user;
+                if (user) console.log("Sesión activa:", user.uid);
+                else console.log("Modo público activo (sin usuario).");
+                
+                // Mostrar la app siempre, ya que el usuario quiere sincronización global sin filtros
+                document.getElementById('loading-screen').classList.add('hidden');
+                document.getElementById('app-content').classList.remove('hidden');
+                
+                document.getElementById('startDate').value = new Date().toISOString().split('T')[0];
+                loadData();
+            });
+
+            // Fallback: Si en 3 segundos no hay respuesta de auth, forzar carga
+            setTimeout(() => {
+                if (document.getElementById('app-content').classList.contains('hidden')) {
+                    console.log("Tiempo de espera de Auth agotado, forzando entrada...");
                     document.getElementById('loading-screen').classList.add('hidden');
                     document.getElementById('app-content').classList.remove('hidden');
-                    
-                    document.getElementById('startDate').value = new Date().toISOString().split('T')[0];
                     loadData();
-                } else {
-                    console.warn("No hay usuario autenticado.");
-                    document.getElementById('loading-text').innerText = "Iniciando sesión...";
                 }
-            });
+            }, 3000);
         }
 
         // --- CARGA DE DATOS ---
@@ -651,12 +636,8 @@
             const btn = document.getElementById('btn-save-loan');
             const originalText = btn.innerText;
             
-            // Validación de sesión
-            if (!currentUser) {
-                alert("No hay una sesión activa. Por favor, recarga la página.");
-                console.error("Save Error: currentUser is null");
-                return;
-            }
+            // Eliminada la validación de sesión obligatoria para permitir sincronización pública
+            // si el usuario decidió deshabilitar la autenticación.
 
             btn.innerText = 'Guardando...';
             btn.disabled = true;
@@ -683,7 +664,7 @@
                     commissionRate: commissionRate,
                     quotas: generateQuotas(startDate, frequency, 24), 
                     createdAt: new Date().toISOString(),
-                    userId: currentUser.uid // Guardamos el ID por seguridad
+                    userId: currentUser ? currentUser.uid : 'public' // ID público si no hay auth
                 };
 
                 console.log("Intentando guardar préstamo en Firestore...", newLoan);
