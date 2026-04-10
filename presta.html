@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PrestaControl - Gestión de Préstamos</title>
+    
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#15803d">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="PrestaControl">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2489/2489756.png">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Animaciones suaves para las transiciones de vistas */
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        /* Ocultar elementos */
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen">
+
+    <!-- Pantalla de Carga Inicial -->
+    <div id="loading-screen" class="flex items-center justify-center min-h-screen bg-slate-50">
+        <div class="text-center">
+            <div class="w-16 h-16 border-4 border-green-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p id="loading-text" class="text-slate-600 font-medium">Conectando a la base de datos...</p>
+        </div>
+    </div>
+
+    <!-- Aplicación Principal -->
+    <div id="app-content" class="hidden">
+        <!-- Navegación -->
+        <nav class="bg-green-700 text-white shadow-md sticky top-0 z-10">
+            <div class="max-w-5xl mx-auto px-4 py-4 flex justify-between items-center">
+                <div class="flex items-center gap-2 cursor-pointer" onclick="window.showView('list')">
+                    <!-- Icono Billetera -->
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
+                    <h1 class="text-xl font-bold tracking-wide">Préstamos</h1>
+                </div>
+                <div class="flex items-center gap-4">
+                    <!-- Botón Volver al Menú -->
+                    <a href="index.html" class="text-white/80 hover:text-white flex items-center gap-1 text-sm font-medium transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                        Menú
+                    </a>
+                    <button onclick="window.showView('finance')" class="text-white/80 hover:text-white flex items-center gap-1 text-sm font-medium transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                        Finanzas
+                    </button>
+                    <div class="flex items-center gap-3">
+                        <button id="btn-install-pwa" class="hidden bg-white/20 hover:bg-white/30 text-white px-3 py-2 rounded-full text-xs font-bold transition-colors flex items-center gap-1 border border-white/30">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            Instalar App
+                        </button>
+                        <button id="btn-new-loan" onclick="window.showView('add')" class="bg-green-500 hover:bg-green-400 text-white px-4 py-2 rounded-full font-medium flex items-center gap-2 transition-colors shadow-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                            <span class="hidden sm:inline">Nuevo Préstamo</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <main class="max-w-5xl mx-auto px-4 py-8">
+            <!-- VISTA: LISTA DE PRÉSTAMOS -->
+            <div id="view-list" class="fade-in">
+                <!-- Contenido inyectado por JS -->
+            </div>
+
+            <!-- VISTA: AGREGAR PRÉSTAMO -->
+            <div id="view-add" class="hidden fade-in max-w-2xl mx-auto bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="bg-slate-50 px-6 py-4 border-b border-slate-200 flex items-center gap-3">
+                    <button onclick="window.showView('list')" class="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-500">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+                    </button>
+                    <h2 class="text-lg font-bold text-slate-800">Registrar Nuevo Préstamo</h2>
+                </div>
+                <form id="form-add-loan" class="p-6 space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="space-y-4 md:col-span-2">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Nombre del Adeudante (Cliente) *</label>
+                                <input type="text" id="clientName" required class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none" placeholder="Ej. Juan Pérez">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Nombre del Intermediario (Opcional)</label>
+                                <input type="text" id="intermediaryName" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none" placeholder="Ej. María López">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Capital Inicial *</label>
+                            <input type="number" id="initialCapital" required min="1" step="0.01" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none" placeholder="0.00">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Fecha de Entrega *</label>
+                            <input type="date" id="startDate" required class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Frecuencia de Cobro *</label>
+                            <select id="frequency" required class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none bg-white">
+                                <option value="semanal">Semanal</option>
+                                <option value="quincenal">Quincenal (Cada 15na)</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">% Interés (Rédito) *</label>
+                            <input type="number" id="interestRate" required min="0" step="0.1" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none" placeholder="Ej. 10">
+                            <p class="text-xs text-slate-500 mt-1">Este es el porcentaje aplicado según la frecuencia elegida.</p>
+                        </div>
+
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-slate-700 mb-1">% Comisión Intermediario</label>
+                            <input type="number" id="commissionRate" min="0" step="0.1" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none" placeholder="Ej. 20 (del rédito)">
+                        </div>
+                    </div>
+                    <div class="pt-4 border-t border-slate-200 flex justify-end gap-3">
+                        <button type="button" onclick="window.showView('list')" class="px-5 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors font-medium">Cancelar</button>
+                        <button type="submit" id="btn-save-loan" class="px-5 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors font-medium flex items-center gap-2">Guardar Préstamo</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- VISTA: DETALLE DE PRÉSTAMO -->
+            <div id="view-detail" class="hidden fade-in space-y-6">
+                <!-- Contenido inyectado por JS -->
+            </div>
+
+            <!-- VISTA: FINANZAS (HISTORIAL DE RÉDITOS) -->
+            <div id="view-finance" class="hidden fade-in space-y-6">
+                <div class="flex items-center justify-between mb-4">
+                    <button onclick="window.showView('list')" class="flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors font-medium">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg> Volver
+                    </button>
+                    <h2 class="text-2xl font-bold text-slate-800">Historial Financiero</h2>
+                </div>
+
+                <div id="finance-content">
+                    <!-- Contenido inyectado por JS -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Lógica de la Aplicación -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc, query, where, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- CONFIGURACIÓN DE FIREBASE ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyAnLru6yhw9huXN25LV4kGmCfXL843o4TA",
+            authDomain: "presta-57302.firebaseapp.com",
+            projectId: "presta-57302",
+            storageBucket: "presta-57302.firebasestorage.app",
+            messagingSenderId: "636802344217",
+            appId: "1:636802344217:web:46fa0418609d69eb841188"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // Habilitar persistencia offline para mayor estabilidad
+        enableIndexedDbPersistence(db).catch((err) => {
+            if (err.code == 'failed-precondition') {
+                console.warn("Persistencia falló: múltiples pestañas abiertas.");
+            } else if (err.code == 'unimplemented') {
+                console.warn("Persistencia no soportada por el navegador.");
+            }
+        });
+
+        // --- CLAVE MAESTRA DE ELIMINACIÓN ---
+        const DELETE_KEY = "2026";
+
+        // --- ESTADO GLOBAL ---
+        let currentUser = null;
+        let globalLoans = [];
+        let activeLoanId = null;
+        let unsubscribeSnapshot = null;
+
+        // Utilidades
+        const formatCurrency = (amount) => new Intl.NumberFormat('es-HN', { style: 'currency', currency: 'HNL' }).format(amount || 0).replace('HNL', 'L');
+        
+        const getMonthShort = (dateStr) => {
+            const d = new Date(dateStr + 'T00:00:00');
+            return d.toLocaleString('es-ES', { month: 'short' }).toUpperCase();
+        };
+        const getDay = (dateStr) => {
+            const d = new Date(dateStr + 'T00:00:00');
+            return d.getDate();
+        };
+
+        // --- INICIALIZACIÓN ---
+        async function initApp() {
+            try {
+                await signInAnonymously(auth).catch(e => console.warn("Auth Anónima deshabilitada o fallida, continuando en modo público."));
+            } catch (error) {
+                console.warn("Error inicial en Auth:", error);
+            }
+
+            onAuthStateChanged(auth, (user) => {
+                currentUser = user;
+                document.getElementById('loading-screen').classList.add('hidden');
+                document.getElementById('app-content').classList.remove('hidden');
+                
+                document.getElementById('startDate').value = new Date().toISOString().split('T')[0];
+                loadData();
+            });
+
+            setTimeout(() => {
+                if (document.getElementById('app-content').classList.contains('hidden')) {
+                    document.getElementById('loading-screen').classList.add('hidden');
+                    document.getElementById('app-content').classList.remove('hidden');
+                    loadData();
+                }
+            }, 3000);
+        }
+
+        // --- CARGA DE DATOS ---
+        function loadData() {
+            if (unsubscribeSnapshot) unsubscribeSnapshot();
+            const loansRef = collection(db, 'loans');
+            const q = query(loansRef); 
+            
+            unsubscribeSnapshot = onSnapshot(q, (snapshot) => {
+                globalLoans = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                globalLoans.sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
+                
+                const detailView = document.getElementById('view-detail');
+                const activeView = detailView && !detailView.classList.contains('hidden') ? 'detail' : 'list';
+                
+                if (activeView === 'list') {
+                    renderList();
+                } else if (activeView === 'detail' && activeLoanId) {
+                    const updatedLoan = globalLoans.find(l => l.id === activeLoanId);
+                    if (updatedLoan) renderDetail(updatedLoan);
+                    else window.showView('list');
+                }
+            }, (error) => {
+                console.error("Firestore Error (Carga de datos):", error);
+            });
+        }
+
+        // --- GESTIÓN DE VISTAS ---
+        window.showView = (viewName, loanId = null) => {
+            document.getElementById('view-list').classList.add('hidden');
+            document.getElementById('view-add').classList.add('hidden');
+            document.getElementById('view-detail').classList.add('hidden');
+            document.getElementById('view-finance').classList.add('hidden');
+            document.getElementById('btn-new-loan').classList.remove('hidden');
+
+            if (viewName === 'list') {
+                activeLoanId = null;
+                renderList();
+                document.getElementById('view-list').classList.remove('hidden');
+            } else if (viewName === 'add') {
+                document.getElementById('btn-new-loan').classList.add('hidden');
+                document.getElementById('form-add-loan').reset();
+                document.getElementById('startDate').value = new Date().toISOString().split('T')[0];
+                document.getElementById('view-add').classList.remove('hidden');
+            } else if (viewName === 'finance') {
+                renderFinance();
+                document.getElementById('view-finance').classList.remove('hidden');
+            } else if (viewName === 'detail' && loanId) {
+                activeLoanId = loanId;
+                const loan = globalLoans.find(l => l.id === loanId);
+                if (loan) {
+                    renderDetail(loan);
+                    document.getElementById('view-detail').classList.remove('hidden');
+                }
+            }
+        };
+
+        // --- RENDERIZADO DE LISTA ---
+        function renderList() {
+            const container = document.getElementById('view-list');
+            
+            if (globalLoans.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-20 bg-white rounded-xl shadow-sm border border-slate-200">
+                        <svg class="mx-auto text-slate-300 mb-4" xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
+                        <h2 class="text-xl font-semibold text-slate-700 mb-2">No hay préstamos activos</h2>
+                        <p class="text-slate-500 mb-6">Comienza registrando tu primer préstamo.</p>
+                    </div>`;
+                return;
+            }
+
+            const totalCapital = globalLoans.reduce((acc, loan) => acc + parseFloat(loan.currentCapital || 0), 0);
+            const totalInterestExpected = globalLoans.reduce((acc, loan) => {
+                if (parseFloat(loan.currentCapital || 0) <= 0) return acc;
+                const pendingQuotas = (loan.quotas || []).filter(q => q.status === 'pending');
+                if (pendingQuotas.length > 0) {
+                    const nextQuota = pendingQuotas[0];
+                    const baseInterest = (parseFloat(loan.currentCapital || 0) * parseFloat(loan.interestRate || 0)) / 100;
+                    return acc + (baseInterest * (nextQuota.interestMultiplier || 1));
+                }
+                return acc;
+            }, 0);
+
+            let html = `
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                    <p class="text-slate-500 text-sm font-medium">Capital Total en Calle</p>
+                    <p class="text-3xl font-bold text-slate-800">${formatCurrency(totalCapital)}</p>
+                </div>
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                    <p class="text-slate-500 text-sm font-medium">Próximos Cobros Proyectados</p>
+                    <p class="text-3xl font-bold text-green-600">${formatCurrency(totalInterestExpected)}</p>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">`;
+            globalLoans.forEach(loan => {
+                const isFinished = parseFloat(loan.currentCapital) <= 0;
+                const pendingQuotas = (loan.quotas || []).filter(q => q.status === 'pending');
+                const nextQuota = pendingQuotas.length > 0 ? pendingQuotas[0] : null;
+                const baseInterest = (parseFloat(loan.currentCapital) * parseFloat(loan.interestRate)) / 100;
+                const nextInterest = nextQuota ? (baseInterest * (nextQuota.interestMultiplier || 1)) : baseInterest;
+                
+                const cardBg = isFinished ? 'bg-green-100 border-green-500 shadow-green-100' : 'bg-white border-slate-200';
+                const cardHover = isFinished ? 'hover:border-green-600' : 'hover:border-green-300';
+
+                html += `
+                <div onclick="window.showView('detail', '${loan.id}')" class="relative overflow-hidden ${cardBg} rounded-xl p-5 shadow-sm hover:shadow-md transition-all cursor-pointer border ${cardHover}">
+                    ${isFinished ? `
+                        <div class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-10 rotate-[-25deg]">
+                            <span class="text-6xl font-black text-green-800 border-8 border-green-800 p-2 rounded-xl">PAGADO</span>
+                        </div>
+                    ` : ''}
+                    <div class="flex justify-between items-start mb-3 relative z-10">
+                        <h3 class="font-bold text-lg text-slate-800 truncate pr-2">${loan.clientName}</h3>
+                        <span class="${isFinished ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-600'} text-xs px-2 py-1 rounded-md whitespace-nowrap">
+                            ${isFinished ? 'FINALIZADO' : (loan.frequency === 'quincenal' ? '15nal' : 'Semanal')}
+                        </span>
+                    </div>
+                    <div class="space-y-2 text-sm relative z-10">
+                        <div class="flex justify-between">
+                            <span class="text-slate-500">Capital Actual:</span>
+                            <span class="font-semibold ${isFinished ? 'text-green-700' : 'text-slate-800'}">${formatCurrency(loan.currentCapital)}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-500">Próximo Cobro:</span>
+                            <span class="font-medium ${isFinished ? 'text-slate-400 line-through' : 'text-blue-600'}">${isFinished ? '$0.00' : formatCurrency(nextInterest)}</span>
+                        </div>
+                    </div>
+                </div>`;
+            });
+            html += `</div>`;
+            container.innerHTML = html;
+        }
+
+        // --- RENDERIZADO DE FINANZAS ---
+        function renderFinance() {
+            const container = document.getElementById('finance-content');
+            let totalPaidInterest = 0;
+            let totalPendingInterest = 0;
+            let totalPaidCommission = 0;
+            const clientHistory = {};
+
+            globalLoans.forEach(loan => {
+                const baseInterest = (parseFloat(loan.currentCapital) * parseFloat(loan.interestRate)) / 100;
+                const commissionRate = parseFloat(loan.commissionRate || 0) / 100;
+                loan.quotas.forEach(quota => {
+                    const quotaInterest = baseInterest * (quota.interestMultiplier || 1);
+                    const quotaCommission = quotaInterest * commissionRate;
+                    if (quota.status === 'paid') {
+                        totalPaidInterest += quotaInterest;
+                        totalPaidCommission += quotaCommission;
+                        if (!clientHistory[loan.clientName]) clientHistory[loan.clientName] = 0;
+                        clientHistory[loan.clientName] += quotaInterest;
+                    } else {
+                        totalPendingInterest += quotaInterest;
+                    }
+                });
+            });
+
+            let html = `
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div class="bg-green-600 text-white p-6 rounded-2xl shadow-lg">
+                        <p class="text-green-100 text-sm font-medium mb-1">Total Ganancia Neta (Pagada)</p>
+                        <p class="text-3xl font-black">${formatCurrency(totalPaidInterest - totalPaidCommission)}</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                        <p class="text-slate-500 text-sm font-medium mb-1">Total Comisiones Pagadas</p>
+                        <p class="text-3xl font-bold text-orange-600">${formatCurrency(totalPaidCommission)}</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                        <p class="text-slate-500 text-sm font-medium mb-1">Réditos Pendientes</p>
+                        <p class="text-3xl font-bold text-blue-600">${formatCurrency(totalPendingInterest)}</p>
+                    </div>
+                </div>
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="bg-slate-50 px-6 py-4 border-b border-slate-200">
+                        <h3 class="font-bold text-slate-800">Top Clientes</h3>
+                    </div>
+                    <div class="p-6">
+                        <div class="space-y-4">
+                            ${Object.entries(clientHistory).sort((a, b) => b[1] - a[1]).map(([name, amount]) => `
+                                <div class="flex justify-between items-center pb-3 border-b border-slate-100 last:border-0">
+                                    <span class="font-medium text-slate-700">${name}</span>
+                                    <span class="font-bold text-green-600">${formatCurrency(amount)}</span>
+                                </div>
+                            `).join('') || '<p class="text-slate-400 text-center py-4 text-sm">No hay historial aún.</p>'}
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.innerHTML = html;
+        }
+
+        // --- RENDERIZADO DEL DETALLE ---
+        function renderDetail(loan) {
+            const container = document.getElementById('view-detail');
+            const currentCapital = parseFloat(loan.currentCapital);
+            const isFinished = currentCapital <= 0;
+            const baseInterest = (currentCapital * parseFloat(loan.interestRate)) / 100;
+            const pendingQuotas = (loan.quotas || []).filter(q => q.status === 'pending');
+            const nextQuota = pendingQuotas.length > 0 ? pendingQuotas[0] : null;
+            const nextInterest = nextQuota ? (baseInterest * (nextQuota.interestMultiplier || 1)) : baseInterest;
+            const nextCommission = (nextInterest * parseFloat(loan.commissionRate || 0)) / 100;
+
+            let quotasHtml = '';
+            if (!isFinished && loan.quotas) {
+                loan.quotas.forEach(quota => {
+                    const isPaid = quota.status === 'paid';
+                    const quotaInterest = baseInterest * (quota.interestMultiplier || 1);
+                    const bgClass = isPaid ? 'bg-green-50 border-green-400' : 'bg-red-50 border-red-200';
+                    quotasHtml += `
+                    <div onclick="window.toggleQuota('${loan.id}', '${quota.id}', '${quota.status}')" 
+                         class="cursor-pointer border-2 rounded-xl p-3 text-center transition-all hover:scale-105 ${bgClass} shadow-sm">
+                        <div class="text-xs uppercase font-bold text-slate-500">${getMonthShort(quota.date)}</div>
+                        <div class="text-3xl font-black ${isPaid ? 'text-green-700' : 'text-red-600'} my-1">${getDay(quota.date)}</div>
+                        <div class="text-xs font-bold ${isPaid ? 'text-green-600' : 'text-red-500'} mb-1">${isPaid ? '✓ Pagado' : 'Pendiente'}</div>
+                        <div class="text-xs font-medium text-slate-700 bg-white/50 rounded py-1">${formatCurrency(quotaInterest)}</div>
+                    </div>`;
+                });
+            }
+
+            container.innerHTML = `
+            <div class="flex items-center justify-between mb-4">
+                <button onclick="window.showView('list')" class="flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors font-medium">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg> Volver
+                </button>
+                <button onclick="window.deleteLoanWithKey('${loan.id}')" class="bg-red-50 text-red-600 hover:bg-red-100 p-2 rounded-lg transition-colors border border-red-100 shadow-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                </button>
+            </div>
+            <div class="relative overflow-hidden ${isFinished ? 'bg-green-100 border-2 border-green-500' : 'bg-white border border-slate-200'} rounded-2xl shadow-sm p-6 mb-6">
+                ${isFinished ? '<div class="absolute inset-0 flex items-center justify-center opacity-10 rotate-[-15deg] pointer-events-none"><span class="text-9xl font-black text-green-800 border-[16px] border-green-800 p-4 rounded-3xl">PAGADO</span></div>' : ''}
+                <div class="flex flex-col md:flex-row justify-between gap-6 relative z-10">
+                    <div class="space-y-4 flex-1">
+                        <div>
+                            <h2 class="text-3xl font-black text-slate-800 mb-1">${loan.clientName}</h2>
+                            <p class="text-slate-500 flex items-center gap-2">
+                                <span class="bg-slate-100 px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider">${loan.frequency}</span>
+                                <span>Entrega: ${loan.startDate}</span>
+                            </p>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                <p class="text-[10px] uppercase font-bold text-slate-400 mb-1">Tasa de Interés</p>
+                                <p class="text-lg font-bold text-slate-700">${loan.interestRate}%</p>
+                            </div>
+                            <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                <p class="text-[10px] uppercase font-bold text-slate-400 mb-1">Comisión</p>
+                                <p class="text-lg font-bold text-slate-700">${loan.commissionRate}%</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="md:w-72 space-y-4">
+                        <div class="${isFinished ? 'bg-green-600' : 'bg-white border border-slate-200'} rounded-xl shadow-sm overflow-hidden">
+                            <div class="${isFinished ? 'bg-green-700 text-green-50' : 'bg-slate-50 text-slate-700'} px-5 py-3 border-b border-slate-200 font-semibold italic">Estado</div>
+                            <div class="p-5 space-y-4">
+                                <div class="flex justify-between items-center"><span class="text-sm ${isFinished ? 'text-green-100' : 'text-slate-500'}">Capital Inicial</span><span class="font-medium ${isFinished ? 'text-white' : 'text-slate-700'}">${formatCurrency(loan.initialCapital)}</span></div>
+                                <div class="flex justify-between items-center pb-4 border-b border-slate-100"><span class="text-sm ${isFinished ? 'text-green-100 font-bold' : 'text-slate-500 font-bold'}">Deuda Actual</span><span class="text-xl font-bold ${isFinished ? 'text-white' : 'text-blue-700'}">${formatCurrency(currentCapital)}</span></div>
+                                ${!isFinished ? `
+                                <div class="flex justify-between items-center bg-green-50 p-3 rounded-lg mt-2">
+                                    <span class="font-bold text-green-800 text-sm">Próximo Cobro Neto:</span>
+                                    <span class="text-lg font-bold text-green-700">${formatCurrency(nextInterest - nextCommission)}</span>
+                                </div>` : ''}
+                            </div>
+                        </div>
+                        ${!isFinished ? `
+                        <div class="space-y-2">
+                            <label class="text-[10px] uppercase font-bold text-slate-400 ml-1">Abono a Capital</label>
+                            <div class="flex gap-2">
+                                <input type="number" id="capital-reduction-amount" placeholder="Monto" class="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-green-500 outline-none">
+                                <button onclick="window.registerAbono('${loan.id}', ${currentCapital})" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm">Abonar</button>
+                            </div>
+                        </div>` : ''}
+                    </div>
+                </div>
+            </div>
+            ${!isFinished ? `
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div class="bg-slate-50 px-6 py-4 border-b border-slate-200"><h3 class="font-bold text-slate-800">Calendario de Pagos</h3></div>
+                <div class="p-6"><div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">${quotasHtml}</div></div>
+            </div>` : ''}
+            `;
+        }
+
+        // --- ACCIONES ---
+        function generateQuotas(startDate, frequency, numQuotas = 24) {
+            const quotas = [];
+            let currentDate = new Date(startDate + 'T00:00:00');
+            for(let i = 1; i <= numQuotas; i++) {
+                let nextDate = new Date(currentDate);
+                if (frequency === 'quincenal') {
+                    if (nextDate.getDate() < 16 && nextDate.getDate() >= 1) nextDate.setDate(16);
+                    else { nextDate.setMonth(nextDate.getMonth() + 1); nextDate.setDate(1); }
+                } else {
+                    const daysUntilSunday = (7 - nextDate.getDay()) % 7;
+                    nextDate.setDate(nextDate.getDate() + (daysUntilSunday === 0 ? 7 : daysUntilSunday));
+                }
+                let multiplier = 1;
+                if (i === 1) {
+                    const diffDays = Math.ceil(Math.abs(nextDate - new Date(startDate + 'T00:00:00')) / (1000 * 60 * 60 * 24));
+                    multiplier = Math.min(1, diffDays / (frequency === 'quincenal' ? 15 : 7));
+                }
+                quotas.push({ id: 'q_' + Date.now() + '_' + i, date: nextDate.toISOString().split('T')[0], status: 'pending', interestMultiplier: multiplier });
+                currentDate = nextDate;
+            }
+            return quotas;
+        }
+
+        document.getElementById('form-add-loan').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('btn-save-loan');
+            btn.disabled = true;
+            try {
+                const initialCapital = parseFloat(document.getElementById('initialCapital').value);
+                const interestRate = parseFloat(document.getElementById('interestRate').value);
+                const docRef = await addDoc(collection(db, 'loans'), {
+                    clientName: document.getElementById('clientName').value.trim(),
+                    intermediaryName: document.getElementById('intermediaryName').value.trim(),
+                    initialCapital, currentCapital: initialCapital,
+                    startDate: document.getElementById('startDate').value,
+                    frequency: document.getElementById('frequency').value,
+                    interestRate, commissionRate: parseFloat(document.getElementById('commissionRate').value || 0),
+                    quotas: generateQuotas(document.getElementById('startDate').value, document.getElementById('frequency').value),
+                    createdAt: new Date().toISOString()
+                });
+                window.showView('detail', docRef.id);
+            } catch (error) { alert("Error al guardar: " + error.message); }
+            finally { btn.disabled = false; }
+        });
+
+        window.toggleQuota = async (loanId, quotaId, currentStatus) => {
+            const loan = globalLoans.find(l => l.id === loanId);
+            const updatedQuotas = loan.quotas.map(q => q.id === quotaId ? { ...q, status: currentStatus === 'pending' ? 'paid' : 'pending' } : q);
+            await updateDoc(doc(db, 'loans', loanId), { quotas: updatedQuotas });
+        };
+
+        window.registerAbono = async (loanId, currentCapital) => {
+            const amount = parseFloat(document.getElementById('capital-reduction-amount').value);
+            if (isNaN(amount) || amount <= 0 || amount > currentCapital) return alert("Monto inválido");
+            await updateDoc(doc(db, 'loans', loanId), { currentCapital: currentCapital - amount });
+            document.getElementById('capital-reduction-amount').value = '';
+        };
+
+        window.deleteLoanWithKey = async (loanId) => {
+            if (prompt("Clave de seguridad:") === DELETE_KEY && confirm("¿Eliminar préstamo?")) {
+                await deleteDoc(doc(db, 'loans', loanId));
+                window.showView('list');
+            }
+        };
+
+        initApp();
+    </script>
+</body>
+</html>

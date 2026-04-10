@@ -2,6 +2,8 @@ const CACHE_NAME = 'presta-control-v1';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
+  './presta.html',
+  './ronda.html',
   './manifest.json',
   'https://cdn.tailwindcss.com',
   'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js',
