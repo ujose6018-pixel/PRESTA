@@ -4,6 +4,7 @@ const ASSETS_TO_CACHE = [
   './index.html',
   './presta.html',
   './ronda.html',
+  './ahorro.html',
   './manifest.json',
   'https://cdn.tailwindcss.com',
   'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js',
