@@ -2,593 +2,1232 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PrestaControl - Ahorro Personal</title>
-    
-    <!-- PWA Meta Tags -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Ahorros y fondos · PrestaControl</title>
+
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#d97706">
+    <meta name="theme-color" content="#F6F5F2">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="PrestaControl">
+    <meta name="apple-mobile-web-app-title" content="Ahorros">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2489/2489756.png">
 
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="theme.css">
     <style>
-        .fade-in { animation: fadeIn 0.3s ease-in-out; }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+        body { padding-bottom: 72px; }
+        @media (min-width: 700px) { body { padding-bottom: 40px; } }
+
+        /* ---- Estado de cuenta ---- */
+        .stmt { width: 100%; border-collapse: collapse; }
+        .stmt th {
+            font-family: var(--f-mono); font-size: 10px; font-weight: 500;
+            letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3);
+            padding: 0 0 7px; border-bottom: 1px solid var(--rule-2); white-space: nowrap;
         }
+        .stmt td { padding: 10px 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+        .stmt tr:last-child td { border-bottom: 0; }
+        .stmt .c-date { width: 52px; }
+        .stmt .c-amt  { width: 86px; text-align: right; }
+        .stmt .c-bal  { width: 88px; text-align: right; }
+        @media (min-width: 640px) {
+            .stmt .c-date { width: 92px; }
+            .stmt .c-amt, .stmt .c-bal { width: 130px; }
+        }
+        .stmt .row-click { cursor: pointer; }
+        .stmt .row-click:hover td { background: var(--sunk); }
+        .stmt .band td {
+            padding: 9px 0 7px; background: var(--sunk);
+            border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule);
+            font-family: var(--f-mono); font-size: 10.5px; font-weight: 500;
+            letter-spacing: .1em; text-transform: uppercase; color: var(--ink-2);
+        }
+        .stmt .band td:first-child { padding-left: 8px; }
+        .stmt .band td:last-child { padding-right: 8px; }
+        .amt { font-family: var(--f-mono); font-size: 13.5px; font-variant-numeric: tabular-nums; letter-spacing: -.02em; white-space: nowrap; }
+        .bal { font-family: var(--f-mono); font-size: 12.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .detail { font-size: 14px; font-weight: 500; }
+        .detail small { display: block; font-size: 11.5px; color: var(--ink-3); font-weight: 400; margin-top: 1px; }
+        .date-cell { font-family: var(--f-mono); font-size: 11.5px; color: var(--ink-3); padding-top: 2px; }
+
+        /* ---- Navegación ---- */
+        .tabbar {
+            position: fixed; bottom: 0; left: 0; right: 0; z-index: 40; display: flex;
+            background: var(--sheet); border-top: 1px solid var(--rule);
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        .tabbar .tab {
+            flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+            padding: 9px 0 11px; border: 0; border-top: 2px solid transparent; margin-top: -1px;
+            background: none; cursor: pointer; color: var(--ink-3);
+            font-family: var(--f-body); font-size: 11px; font-weight: 600;
+        }
+        .tabbar .tab[aria-current="true"] { color: var(--brand); border-top-color: var(--brand); }
+        .htabs { display: none; gap: 2px; }
+        .htabs .tab {
+            padding: 7px 13px; border: 0; border-radius: 7px; background: none; cursor: pointer;
+            font-family: var(--f-body); font-size: 14px; font-weight: 600; color: var(--ink-3);
+        }
+        .htabs .tab:hover { color: var(--ink); }
+        .htabs .tab[aria-current="true"] { color: var(--ink); background: var(--sunk); }
+        @media (min-width: 700px) { .tabbar { display: none; } .htabs { display: flex; } }
+
+        .kpi { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--rule); }
+        .kpi > div { padding: 13px 16px; border-right: 1px solid var(--rule); }
+        .kpi > div:last-child { border-right: 0; }
+
+        .list-row { display: flex; align-items: center; gap: 12px; padding: 13px 16px; border-bottom: 1px solid var(--rule); cursor: pointer; }
+        .list-row:last-child { border-bottom: 0; }
+        .list-row:hover { background: var(--sunk); }
+
+        .grid-num { display: grid; grid-template-columns: repeat(auto-fill, minmax(46px, 1fr)); gap: 5px; }
+        .nbox {
+            aspect-ratio: 1; display: grid; place-items: center; cursor: pointer;
+            font-family: var(--f-mono); font-size: 12px; font-variant-numeric: tabular-nums;
+            background: var(--sheet); border: 1px solid var(--rule); border-radius: 5px;
+            color: var(--ink-3); transition: all .12s ease;
+        }
+        .nbox:hover { border-color: var(--brand); color: var(--brand); }
+        .nbox[aria-pressed="true"] { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); font-weight: 600; }
+
         .hidden { display: none !important; }
-        .number-box {
-            aspect-ratio: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.75rem;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.2s;
-            border-radius: 0.5rem;
-        }
-        .number-box.saved {
-            background-color: #d97706;
-            color: white;
-            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .number-box.not-saved {
-            background-color: white;
-            border: 1px solid #e2e8f0;
-            color: #475569;
-        }
-        .number-box.not-saved:hover {
-            border-color: #d97706;
-            color: #d97706;
-            transform: scale(1.05);
-        }
     </style>
 </head>
-<body class="bg-slate-100 text-slate-800 font-sans min-h-screen">
+<body>
 
-    <!-- Pantalla de Carga Inicial -->
-    <div id="loading-screen" class="flex items-center justify-center min-h-screen bg-slate-50">
-        <div class="text-center">
-            <div class="w-16 h-16 border-4 border-amber-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p id="loading-text" class="text-slate-600 font-medium">Cargando tus ahorros...</p>
+<div id="boot" class="fixed inset-0 grid place-items-center" style="background: var(--paper); z-index: 90;">
+    <p class="tag" id="boot-text">Cargando</p>
+</div>
+
+<div id="app" class="hidden">
+
+    <header class="sticky top-0 z-30" style="background: var(--sheet); border-bottom: 1px solid var(--rule);">
+        <div class="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
+            <div class="flex items-center gap-3 min-w-0">
+                <a href="index.html" class="flex items-center gap-2.5 min-w-0" aria-label="Ir al menú">
+                    <span class="mono-tile" style="background: var(--brand); color: var(--brand-ink); width:28px; height:28px; font-size:11px;">PC</span>
+                    <span class="font-semibold text-[15px] truncate" style="font-family: var(--f-display);">Ahorros</span>
+                </a>
+                <nav class="htabs ml-3" role="tablist">
+                    <button class="tab" data-tab="home"  aria-current="true">Resumen</button>
+                    <button class="tab" data-tab="funds" aria-current="false">Fondos</button>
+                    <button class="tab" data-tab="goals" aria-current="false">Metas</button>
+                </nav>
+            </div>
+            <button id="theme-btn" class="btn btn-quiet btn-sm" aria-label="Cambiar tema">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z"/></svg>
+            </button>
         </div>
-    </div>
+    </header>
 
-    <!-- Aplicación Principal -->
-    <div id="app-content" class="hidden">
-        <!-- Navegación -->
-        <nav class="bg-amber-700 text-white shadow-md sticky top-0 z-10">
-            <div class="max-w-5xl mx-auto px-4 py-4 flex justify-between items-center">
-                <div class="flex items-center gap-2 cursor-pointer" onclick="window.showView('list')">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 5c-1.5 0-2.8 1.4-3 2-0.2-0.6-1.5-2-3-2V5c1.5 0 2.8 1.4 3 2 0.2-0.6 1.5-2 3-2V5z"/><path d="M7 19c-1.5 0-2.8-1.4-3-2 0.2 0.6 1.5 2 3 2v2c-1.5 0-2.8-1.4-3-2 0.2 0.6 1.5 2 3 2v-2z"/><path d="M12 12c-2 0-3 1-3 3s1 3 3 3 3-1 3-3-1-3-3-3z"/></svg>
-                    <h1 class="text-xl font-bold tracking-wide">Ahorros</h1>
+    <main class="max-w-3xl mx-auto px-4 py-5">
+        <section id="view-home"></section>
+        <section id="view-funds" class="hidden"></section>
+        <section id="view-fund"  class="hidden"></section>
+        <section id="view-goals" class="hidden"></section>
+        <section id="view-goal"  class="hidden"></section>
+    </main>
+
+    <nav class="tabbar" role="tablist">
+        <button class="tab" data-tab="home" aria-current="true">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V9.5L12 3l8 6.5V20a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1Z"/></svg>
+            Resumen
+        </button>
+        <button class="tab" data-tab="funds" aria-current="false">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h3"/></svg>
+            Fondos
+        </button>
+        <button class="tab" data-tab="goals" aria-current="false">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V6a2 2 0 0 1 2-2h8l-1.5 3L14 10H6"/><path d="M4 20h6"/></svg>
+            Metas
+        </button>
+    </nav>
+</div>
+
+<div id="scrim" class="scrim" data-act="close-dialog"></div>
+<div id="dialog" class="dialog" role="dialog" aria-modal="true"><div class="dialog-grip"></div><div id="dialog-body"></div></div>
+<div id="notices" class="notices"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { getFirestore, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc, query,
+         enableIndexedDbPersistence, arrayUnion, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+const firebaseConfig = {
+    apiKey: "AIzaSyAnLru6yhw9huXN25LV4kGmCfXL843o4TA",
+    authDomain: "presta-57302.firebaseapp.com",
+    projectId: "presta-57302",
+    storageBucket: "presta-57302.firebasestorage.app",
+    messagingSenderId: "636802344217",
+    appId: "1:636802344217:web:46fa0418609d69eb841188"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+enableIndexedDbPersistence(db).catch(() => {});
+
+const FUNDS = 'savings_funds';
+const PLANS = 'savings_plans';
+const MASTER_KEY = '2026';
+
+let funds = [], plans = [];
+let route = { view: 'home', id: null };
+let dialogOpen = false;
+let movFilter = 'all';
+
+const COLORS = {
+    azul:    '#1F3A5F',
+    verde:   '#1C6544',
+    ocre:    '#8A5A1E',
+    vino:    '#7B2D38',
+    pizarra: '#3F4A57'
+};
+const CATS = {
+    in:  ['Sueldo', 'Negocio', 'Extra', 'Devolución', 'Regalo', 'Otro'],
+    out: ['Emergencia', 'Compra', 'Deuda', 'Comida', 'Transporte', 'Otro']
+};
+
+/* ---------------- Utilidades ---------------- */
+const $ = (s, r = document) => r.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
+function money(n, opts = {}) {
+    const v = Number(n) || 0;
+    const s = Math.abs(v).toLocaleString('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const sign = opts.signed ? (v > 0 ? '+' : v < 0 ? '−' : '') : (v < 0 ? '−' : '');
+    return `${sign}L ${s}`;
+}
+const money0 = (n) => 'L ' + Math.round(Number(n) || 0).toLocaleString('es-HN');
+const monogram = (name) => {
+    const w = String(name || '?').trim().split(/\s+/).filter(Boolean);
+    return ((w[0]?.[0] || '?') + (w[1]?.[0] || '')).toUpperCase();
+};
+const tint = (hex, a) => {
+    const h = hex.replace('#', '');
+    return `rgba(${parseInt(h.slice(0,2),16)},${parseInt(h.slice(2,4),16)},${parseInt(h.slice(4,6),16)},${a})`;
+};
+
+const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+const fshort = (iso) => { const d = new Date(iso); return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`; };
+const flong  = (iso) => { const d = new Date(iso); return `${d.getDate()} de ${MESES[d.getMonth()]} de ${d.getFullYear()}`; };
+const ftime  = (iso) => new Date(iso).toLocaleTimeString('es-HN', { hour: '2-digit', minute: '2-digit' });
+const monthKey = (iso) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; };
+const monthLabel = (key) => { const [y, m] = key.split('-'); return `${MESES[+m - 1]} ${y}`; };
+const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+const isoToDate = (iso) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+function dateToISO(s) { return s === todayStr() ? new Date().toISOString() : new Date(s + 'T12:00:00').toISOString(); }
+
+/* ---------------- Cálculos ---------------- */
+const movs = (f) => (f && Array.isArray(f.movements)) ? f.movements : [];
+const balanceOf = (f) => movs(f).reduce((a, m) => a + (m.type === 'out' ? -Number(m.amount || 0) : Number(m.amount || 0)), 0);
+const colorOf = (f) => COLORS[f.color] || COLORS.azul;
+
+function monthFlow(list, key = monthKey(new Date().toISOString())) {
+    let inn = 0, out = 0;
+    list.forEach(f => movs(f).forEach(m => {
+        if (monthKey(m.date) !== key) return;
+        if (m.type === 'out') out += Number(m.amount || 0); else inn += Number(m.amount || 0);
+    }));
+    return { inn, out, net: inn - out };
+}
+
+function planTotals(p) {
+    if (p.type === 'challenge') {
+        const start = Number(p.startNum) || 0, end = Number(p.endNum) || 0;
+        const count = Math.max(0, end - start + 1);
+        return { saved: (p.savedItems || []).reduce((a, b) => a + Number(b), 0), target: count > 0 ? (count * (start + end)) / 2 : 0, count };
+    }
+    return { saved: (p.deposits || []).reduce((a, d) => a + Number(d.amount || 0), 0), target: Number(p.targetAmount) || 0, count: 0 };
+}
+const totalFunds = () => funds.reduce((a, f) => a + balanceOf(f), 0);
+const totalGoals = () => plans.reduce((a, p) => a + planTotals(p).saved, 0);
+
+/* Saldo corrido: cronológico hacia adelante, luego se muestra al revés */
+function withRunning(f) {
+    const asc = movs(f).slice().sort((a, b) => new Date(a.date) - new Date(b.date));
+    let run = 0;
+    return asc.map(m => { run += (m.type === 'out' ? -Number(m.amount || 0) : Number(m.amount || 0)); return { ...m, saldo: run }; });
+}
+
+/* ---------------- Avisos ---------------- */
+function notice(msg, kind = '') {
+    const el = document.createElement('div');
+    el.className = `notice ${kind}`;
+    el.textContent = msg;
+    $('#notices').appendChild(el);
+    setTimeout(() => { el.classList.add('gone'); setTimeout(() => el.remove(), 220); }, 2600);
+}
+
+/* ---------------- Diálogos ---------------- */
+function openDialog(html) {
+    $('#dialog-body').innerHTML = html;
+    $('#dialog').classList.add('open');
+    $('#scrim').classList.add('open');
+    if (!dialogOpen) { dialogOpen = true; history.pushState({ dialog: true }, ''); }
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => $('#dialog [data-autofocus]')?.focus(), 240);
+}
+function closeDialog(fromPop = false) {
+    if (!dialogOpen) return;
+    dialogOpen = false;
+    $('#dialog').classList.remove('open');
+    $('#scrim').classList.remove('open');
+    document.body.style.overflow = '';
+    if (!fromPop && history.state && history.state.dialog) history.back();
+}
+
+function askConfirm({ title, body, label = 'Confirmar', danger = false, key = false }) {
+    return new Promise(resolve => {
+        openDialog(`
+            <h2 class="text-[17px] font-semibold mb-2">${esc(title)}</h2>
+            <p class="text-[14px] mb-5" style="color: var(--ink-2); line-height:1.6">${body}</p>
+            ${key ? `<div class="mb-5"><label class="label" for="ck">Clave maestra</label><input id="ck" type="password" inputmode="numeric" class="field field-num" data-autofocus></div>` : ''}
+            <div class="flex gap-2.5 justify-end">
+                <button class="btn btn-outline" data-confirm="0">Cancelar</button>
+                <button class="btn ${danger ? 'btn-danger' : 'btn-primary'}" data-confirm="1">${esc(label)}</button>
+            </div>`);
+        const handler = (e) => {
+            const btn = e.target.closest('[data-confirm]');
+            if (!btn) return;
+            const ok = btn.dataset.confirm === '1';
+            if (ok && key && ($('#ck')?.value || '') !== MASTER_KEY) { notice('Clave incorrecta', 'neg'); return; }
+            $('#dialog').removeEventListener('click', handler);
+            closeDialog();
+            resolve(ok);
+        };
+        $('#dialog').addEventListener('click', handler);
+    });
+}
+
+/* ---------------- Navegación ---------------- */
+function go(view, id = null, push = true) {
+    route = { view, id };
+    if (push) history.pushState({ view, id }, '');
+    ['home', 'funds', 'fund', 'goals', 'goal'].forEach(v => $('#view-' + v).classList.toggle('hidden', v !== view));
+    document.querySelectorAll('.tab[data-tab]').forEach(t => {
+        const active = t.dataset.tab === view || (view === 'fund' && t.dataset.tab === 'funds') || (view === 'goal' && t.dataset.tab === 'goals');
+        t.setAttribute('aria-current', active ? 'true' : 'false');
+    });
+    window.scrollTo(0, 0);
+    render();
+}
+
+window.addEventListener('popstate', (e) => {
+    if (dialogOpen) { closeDialog(true); return; }
+    const s = e.state || { view: 'home', id: null };
+    go(s.view || 'home', s.id || null, false);
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && dialogOpen) closeDialog(); });
+
+function render() {
+    if (route.view === 'home')  renderHome();
+    if (route.view === 'funds') renderFunds();
+    if (route.view === 'fund')  renderFundDetail();
+    if (route.view === 'goals') renderGoals();
+    if (route.view === 'goal')  renderGoalDetail();
+}
+
+/* ============================================================
+   VISTAS
+   ============================================================ */
+function movRow(m, opts = {}) {
+    const inn = m.type !== 'out';
+    const click = opts.fundId ? `class="row-click" data-act="edit-mov" data-id="${opts.fundId}" data-mid="${m.id}"` : '';
+    return `<tr ${click}>
+        <td class="c-date"><span class="date-cell">${fshort(m.date)}</span></td>
+        <td><span class="detail">${esc(m.note || m.category || (inn ? 'Ingreso' : 'Retiro'))}
+            <small>${esc(m.category || '—')}${m.fundName ? ' · ' + esc(m.fundName) : ''}</small></span></td>
+        <td class="c-amt"><span class="amt ${inn ? 'pos' : 'neg'}">${inn ? '+' : '−'}${money(m.amount).replace('−', '')}</span></td>
+        ${opts.saldo ? `<td class="c-bal"><span class="bal">${money(m.saldo)}</span></td>` : ''}
+    </tr>`;
+}
+
+function stmtHead(saldo) {
+    return `<thead><tr>
+        <th class="c-date">Fecha</th><th>Detalle</th><th class="c-amt">Monto</th>
+        ${saldo ? '<th class="c-bal">Saldo</th>' : ''}
+    </tr></thead>`;
+}
+
+function renderHome() {
+    const tf = totalFunds(), tg = totalGoals();
+    const flow = monthFlow(funds);
+    const maxFlow = Math.max(flow.inn, flow.out, 1);
+    const mes = MESES[new Date().getMonth()];
+    const recientes = funds.flatMap(f => movs(f).map(m => ({ ...m, fundId: f.id, fundName: funds.length > 1 ? f.name : '' })))
+                           .sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 8);
+
+    $('#view-home').innerHTML = `
+    <div class="space-y-4">
+
+        <div class="panel">
+            <div class="px-4 sm:px-5 pt-4 pb-4">
+                <p class="tag">Saldo total</p>
+                <p class="num text-[32px] sm:text-[36px] leading-none mt-2">${money(tf + tg)}</p>
+                <p class="text-[12.5px] mt-2.5" style="color: var(--ink-3);">Al ${flong(new Date().toISOString())}</p>
+            </div>
+            <div class="kpi">
+                <div>
+                    <p class="tag">Fondos</p>
+                    <p class="num text-[15px] mt-1.5">${money(tf)}</p>
                 </div>
-                <div class="flex items-center gap-4">
-                    <a href="index.html" class="text-white/80 hover:text-white flex items-center gap-1 text-sm font-medium transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-                        Menú
-                    </a>
-                    <div class="flex items-center gap-3">
-                        <button id="btn-new-plan" onclick="window.showView('add')" class="bg-amber-500 hover:bg-amber-400 text-white px-4 py-2 rounded-full font-medium flex items-center gap-2 transition-colors shadow-sm">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-                            <span class="hidden sm:inline">Nueva Meta</span>
+                <div>
+                    <p class="tag">Metas</p>
+                    <p class="num text-[15px] mt-1.5">${money(tg)}</p>
+                </div>
+                <div>
+                    <p class="tag">Neto de ${mes.slice(0, 3)}</p>
+                    <p class="num text-[15px] mt-1.5 ${flow.net > 0 ? 'pos' : flow.net < 0 ? 'neg' : ''}">${money(flow.net, { signed: true })}</p>
+                </div>
+            </div>
+        </div>
+
+        ${funds.length ? `
+        <div class="flex flex-wrap gap-2">
+            <button class="btn btn-primary" data-act="quick-in">Registrar ingreso</button>
+            <button class="btn btn-outline" data-act="quick-out">Registrar retiro</button>
+            <button class="btn btn-outline" data-act="transfer" ${funds.length < 2 ? 'disabled' : ''}>Traspaso</button>
+        </div>
+
+        <div class="panel">
+            <div class="panel-head">
+                <h2 class="text-[15px] font-semibold">Movimiento de ${mes}</h2>
+                <span class="tag">${funds.length} fondo${funds.length === 1 ? '' : 's'}</span>
+            </div>
+            <div class="panel-body space-y-3.5">
+                <div>
+                    <div class="flex justify-between items-baseline mb-1.5">
+                        <span class="text-[13.5px]" style="color: var(--ink-2);">Entradas</span>
+                        <span class="num text-[14px] pos">${money(flow.inn)}</span>
+                    </div>
+                    <div class="meter"><i style="width:${(flow.inn / maxFlow * 100).toFixed(1)}%; background: var(--pos);"></i></div>
+                </div>
+                <div>
+                    <div class="flex justify-between items-baseline mb-1.5">
+                        <span class="text-[13.5px]" style="color: var(--ink-2);">Salidas</span>
+                        <span class="num text-[14px] neg">${money(flow.out)}</span>
+                    </div>
+                    <div class="meter"><i style="width:${(flow.out / maxFlow * 100).toFixed(1)}%; background: var(--neg);"></i></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-head">
+                <h2 class="text-[15px] font-semibold">Fondos</h2>
+                <button class="text-[13px] font-semibold" data-act="tab-funds" style="color: var(--brand);">Ver todos</button>
+            </div>
+            ${funds.slice(0, 4).map(f => fundRow(f)).join('')}
+        </div>
+
+        ${recientes.length ? `
+        <div class="panel">
+            <div class="panel-head"><h2 class="text-[15px] font-semibold">Últimos movimientos</h2></div>
+            <div class="panel-body pt-3">
+                <table class="stmt">${stmtHead(false)}<tbody>
+                    ${recientes.map(m => movRow(m, { fundId: m.fundId, saldo: false })).join('')}
+                </tbody></table>
+            </div>
+        </div>` : ''}
+        ` : `
+        <div class="panel">
+            <div class="panel-body" style="max-width: 46ch;">
+                <h2 class="text-[17px] font-semibold mb-2">Abre tu primer fondo</h2>
+                <p class="text-[14px] mb-5" style="color: var(--ink-2); line-height: 1.6;">
+                    Un fondo es una bolsa de dinero con saldo propio. Registras lo que entra y lo que sale,
+                    y cada movimiento queda con el saldo que dejó, como en un estado de cuenta.
+                </p>
+                <button class="btn btn-primary" data-act="new-fund">Crear fondo</button>
+            </div>
+        </div>`}
+
+        ${plans.length ? `
+        <div class="panel">
+            <div class="panel-head">
+                <h2 class="text-[15px] font-semibold">Metas</h2>
+                <button class="text-[13px] font-semibold" data-act="tab-goals" style="color: var(--brand);">Ver todas</button>
+            </div>
+            ${plans.slice(0, 3).map(p => goalRow(p)).join('')}
+        </div>` : ''}
+    </div>`;
+}
+
+function fundRow(f) {
+    const c = colorOf(f), bal = balanceOf(f);
+    return `<div class="list-row" data-act="open-fund" data-id="${f.id}">
+        <span class="mono-tile" style="background:${tint(c, .1)}; color:${c};">${esc(monogram(f.name))}</span>
+        <span class="flex-1 min-w-0">
+            <span class="block text-[14.5px] font-semibold truncate">${esc(f.name)}</span>
+            <span class="block text-[12px]" style="color: var(--ink-3);">${movs(f).length} movimiento${movs(f).length === 1 ? '' : 's'}${f.goal ? ` · meta ${money0(f.goal)}` : ''}</span>
+        </span>
+        <span class="num text-[15px] ${bal < 0 ? 'neg' : ''}">${money(bal)}</span>
+    </div>`;
+}
+
+function goalRow(p) {
+    const t = planTotals(p);
+    const pct = t.target ? Math.min(100, (t.saved / t.target) * 100) : 0;
+    return `<div class="list-row" data-act="open-goal" data-id="${p.id}">
+        <span class="flex-1 min-w-0">
+            <span class="flex items-center gap-2 mb-1.5">
+                <span class="text-[14.5px] font-semibold truncate">${esc(p.name)}</span>
+                <span class="badge">${p.type === 'challenge' ? 'Reto' : 'Fecha'}</span>
+            </span>
+            <span class="meter block" style="max-width: 220px;"><i style="width:${pct}%"></i></span>
+        </span>
+        <span class="text-right">
+            <span class="num block text-[15px]">${money(t.saved)}</span>
+            <span class="block text-[11.5px] num" style="color: var(--ink-3);">de ${money0(t.target)}</span>
+        </span>
+    </div>`;
+}
+
+function renderFunds() {
+    $('#view-funds').innerHTML = `
+    <div class="flex items-center justify-between mb-4">
+        <div>
+            <h1 class="text-[21px] font-semibold">Fondos</h1>
+            <p class="text-[13px]" style="color: var(--ink-3);">${funds.length} abierto${funds.length === 1 ? '' : 's'} · ${money(totalFunds())} en total</p>
+        </div>
+        <button class="btn btn-primary btn-sm" data-act="new-fund">Nuevo fondo</button>
+    </div>
+    ${funds.length === 0 ? `
+        <div class="panel"><div class="panel-body" style="max-width: 46ch;">
+            <h2 class="text-[16px] font-semibold mb-2">Sin fondos</h2>
+            <p class="text-[14px] mb-5" style="color: var(--ink-2); line-height:1.6;">Crea uno con el saldo que ya tienes guardado y empieza a registrar entradas y salidas.</p>
+            <button class="btn btn-primary" data-act="new-fund">Crear fondo</button>
+        </div></div>` : `
+        <div class="panel">${funds.map(f => {
+            const c = colorOf(f), bal = balanceOf(f), flow = monthFlow([f]);
+            const pct = f.goal ? Math.min(100, (bal / Number(f.goal)) * 100) : null;
+            return `<div class="list-row" data-act="open-fund" data-id="${f.id}">
+                <span class="mono-tile" style="background:${tint(c, .1)}; color:${c};">${esc(monogram(f.name))}</span>
+                <span class="flex-1 min-w-0">
+                    <span class="block text-[14.5px] font-semibold truncate">${esc(f.name)}</span>
+                    <span class="block text-[12px] mt-0.5" style="color: var(--ink-3);">
+                        ${pct !== null ? `${Math.round(pct)}% de ${money0(f.goal)}` :
+                        `<span class="pos">+${money0(flow.inn)}</span> · <span class="neg">−${money0(flow.out)}</span> este mes`}
+                    </span>
+                    ${pct !== null ? `<span class="meter block mt-1.5" style="max-width:200px"><i style="width:${pct}%; background:${c}"></i></span>` : ''}
+                </span>
+                <span class="num text-[15.5px] ${bal < 0 ? 'neg' : ''}">${money(bal)}</span>
+            </div>`;
+        }).join('')}</div>`}`;
+}
+
+function renderFundDetail() {
+    const f = funds.find(x => x.id === route.id);
+    if (!f) return go('funds', null, false);
+    const c = colorOf(f), bal = balanceOf(f), flow = monthFlow([f]);
+    const pct = f.goal ? Math.min(100, (bal / Number(f.goal)) * 100) : null;
+
+    const full = withRunning(f);
+    const netMes = {};
+    full.forEach(m => { const k = monthKey(m.date); netMes[k] = (netMes[k] || 0) + (m.type === 'out' ? -Number(m.amount) : Number(m.amount)); });
+    const shown = full.slice().reverse().filter(m => movFilter === 'all' || m.type === movFilter);
+
+    let filas = '', mesActual = null;
+    shown.forEach(m => {
+        const k = monthKey(m.date);
+        if (k !== mesActual) {
+            mesActual = k;
+            filas += `<tr class="band"><td colspan="3">${monthLabel(k)}</td>
+                      <td class="c-bal" style="text-align:right">${money(netMes[k], { signed: true })}</td></tr>`;
+        }
+        filas += movRow(m, { fundId: f.id, saldo: true });
+    });
+
+    $('#view-fund').innerHTML = `
+    <button class="btn btn-quiet btn-sm -ml-3 mb-3" data-act="tab-funds">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14 18-6-6 6-6"/></svg>
+        Fondos
+    </button>
+
+    <div class="space-y-4">
+        <div class="panel">
+            <div class="px-4 sm:px-5 pt-4 pb-4">
+                <div class="flex items-start justify-between gap-4">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <span class="mono-tile" style="background:${tint(c, .1)}; color:${c};">${esc(monogram(f.name))}</span>
+                        <div class="min-w-0">
+                            <h1 class="text-[17px] font-semibold truncate">${esc(f.name)}</h1>
+                            <p class="text-[12px]" style="color: var(--ink-3);">Abierto el ${flong(f.createdAt)}</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-1 flex-none">
+                        <button class="btn btn-quiet btn-sm" data-act="export-fund" data-id="${f.id}" aria-label="Exportar CSV" title="Exportar CSV">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 11l4 4 4-4M4 20h16"/></svg>
+                        </button>
+                        <button class="btn btn-quiet btn-sm" data-act="edit-fund" data-id="${f.id}" aria-label="Editar fondo" title="Editar">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                        </button>
+                        <button class="btn btn-quiet btn-sm" data-act="delete-fund" data-id="${f.id}" aria-label="Eliminar fondo" title="Eliminar" style="color: var(--neg);">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                         </button>
                     </div>
                 </div>
+                <p class="tag mt-5">Saldo disponible</p>
+                <p class="num text-[30px] leading-none mt-2 ${bal < 0 ? 'neg' : ''}">${money(bal)}</p>
+                ${pct !== null ? `
+                    <div class="meter mt-4" style="max-width: 320px;"><i style="width:${pct}%; background:${c}"></i></div>
+                    <p class="text-[12.5px] mt-2" style="color: var(--ink-3);">
+                        ${Math.round(pct)}% de la meta de <span class="num">${money(f.goal)}</span> · faltan <span class="num">${money(Math.max(0, Number(f.goal) - bal))}</span>
+                    </p>` : ''}
             </div>
-        </nav>
+            <div class="kpi">
+                <div><p class="tag">Entró este mes</p><p class="num text-[14.5px] mt-1.5 pos">${money(flow.inn)}</p></div>
+                <div><p class="tag">Salió este mes</p><p class="num text-[14.5px] mt-1.5 neg">${money(flow.out)}</p></div>
+                <div><p class="tag">Movimientos</p><p class="num text-[14.5px] mt-1.5">${movs(f).length}</p></div>
+            </div>
+        </div>
 
-        <main class="max-w-5xl mx-auto px-4 py-8">
-            <!-- VISTA: LISTA DE PLANES -->
-            <div id="view-list" class="fade-in">
-                <div class="flex items-center justify-between mb-8">
-                    <div>
-                        <h2 class="text-3xl font-black text-slate-900">Mis Ahorros</h2>
-                        <p class="text-slate-500">Gestiona tus retos y metas personales</p>
+        <div class="flex flex-wrap gap-2">
+            <button class="btn btn-primary" data-act="mov" data-id="${f.id}" data-type="in">Registrar ingreso</button>
+            <button class="btn btn-outline" data-act="mov" data-id="${f.id}" data-type="out">Registrar retiro</button>
+            <button class="btn btn-outline" data-act="transfer" data-id="${f.id}" ${funds.length < 2 ? 'disabled' : ''}>Traspaso</button>
+        </div>
+
+        <div class="panel">
+            <div class="panel-head">
+                <h2 class="text-[15px] font-semibold">Estado de cuenta</h2>
+                <div class="flex gap-1.5">
+                    ${[['all','Todo'],['in','Entradas'],['out','Salidas']].map(([k, l]) =>
+                        `<button class="chip" style="padding:4px 9px; font-size:12px;" aria-pressed="${movFilter === k}" data-act="filter" data-filter="${k}">${l}</button>`).join('')}
+                </div>
+            </div>
+            <div class="panel-body pt-3">
+                ${shown.length === 0 ? `
+                    <p class="text-[14px] py-6" style="color: var(--ink-3);">
+                        ${movFilter === 'all' ? 'Este fondo todavía no tiene movimientos.' : 'No hay movimientos de este tipo.'}
+                    </p>` : `
+                    <table class="stmt">${stmtHead(true)}<tbody>${filas}</tbody></table>
+                    <p class="text-[12px] mt-4" style="color: var(--ink-3);">Toca una fila para corregir o borrar el movimiento.</p>`}
+            </div>
+        </div>
+    </div>`;
+}
+
+function renderGoals() {
+    $('#view-goals').innerHTML = `
+    <div class="flex items-center justify-between mb-4">
+        <div>
+            <h1 class="text-[21px] font-semibold">Metas</h1>
+            <p class="text-[13px]" style="color: var(--ink-3);">Retos de números y objetivos con fecha</p>
+        </div>
+        <button class="btn btn-primary btn-sm" data-act="new-goal">Nueva meta</button>
+    </div>
+    ${plans.length === 0 ? `
+        <div class="panel"><div class="panel-body" style="max-width: 46ch;">
+            <h2 class="text-[16px] font-semibold mb-2">Sin metas activas</h2>
+            <p class="text-[14px] mb-5" style="color: var(--ink-2); line-height:1.6;">Un reto de números o un objetivo con fecha límite convierten el ahorro en un plan concreto.</p>
+            <button class="btn btn-primary" data-act="new-goal">Crear meta</button>
+        </div></div>` : `<div class="panel">${plans.map(p => goalRow(p)).join('')}</div>`}`;
+}
+
+function renderGoalDetail() {
+    const p = plans.find(x => x.id === route.id);
+    if (!p) return go('goals', null, false);
+    const t = planTotals(p);
+    const pct = t.target ? Math.min(100, (t.saved / t.target) * 100) : 0;
+    const reto = p.type === 'challenge';
+
+    let cuerpo = '';
+    if (reto) {
+        const saved = (p.savedItems || []).map(Number);
+        let boxes = '';
+        for (let i = Number(p.startNum); i <= Number(p.endNum); i++)
+            boxes += `<button class="nbox" aria-pressed="${saved.includes(i)}" data-act="toggle-num" data-id="${p.id}" data-num="${i}">${i}</button>`;
+        cuerpo = `<div class="panel">
+            <div class="panel-head">
+                <h2 class="text-[15px] font-semibold">Números</h2>
+                <span class="tag">${saved.length} de ${t.count} marcados</span>
+            </div>
+            <div class="panel-body"><div class="grid-num">${boxes}</div></div>
+        </div>`;
+    } else {
+        const dias = Math.max(0, Math.ceil((new Date(p.targetDate + 'T23:59:59') - new Date()) / 86400000));
+        const diario = dias > 0 ? Math.max(0, (t.target - t.saved) / dias) : 0;
+        const deps = (p.deposits || []).slice().sort((a, b) => new Date(b.date) - new Date(a.date));
+        cuerpo = `
+        <button class="btn btn-primary" data-act="deposit" data-id="${p.id}">Registrar abono</button>
+        <div class="panel">
+            <div class="panel-head"><h2 class="text-[15px] font-semibold">Abonos</h2><span class="tag">${deps.length} registrados</span></div>
+            <div class="panel-body pt-3">
+                ${deps.length === 0 ? `<p class="text-[14px] py-4" style="color: var(--ink-3);">Todavía no hay abonos.</p>` : `
+                <table class="stmt">${stmtHead(false)}<tbody>
+                    ${deps.map(d => `<tr>
+                        <td class="c-date"><span class="date-cell">${fshort(d.date)}</span></td>
+                        <td><span class="detail">Abono<small>${ftime(d.date)}</small></span></td>
+                        <td class="c-amt"><span class="amt pos">+${money(d.amount)}</span></td>
+                    </tr>`).join('')}
+                </tbody></table>`}
+            </div>
+        </div>`;
+        var extraKpi = `<div><p class="tag">Días restantes</p><p class="num text-[14.5px] mt-1.5">${dias}</p></div>
+                        <div><p class="tag">Ahorro diario</p><p class="num text-[14.5px] mt-1.5">${money(diario)}</p></div>`;
+    }
+
+    $('#view-goal').innerHTML = `
+    <button class="btn btn-quiet btn-sm -ml-3 mb-3" data-act="tab-goals">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14 18-6-6 6-6"/></svg>
+        Metas
+    </button>
+
+    <div class="space-y-4">
+        <div class="panel">
+            <div class="px-4 sm:px-5 pt-4 pb-4">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                        <h1 class="text-[17px] font-semibold truncate">${esc(p.name)}</h1>
+                        <p class="text-[12px]" style="color: var(--ink-3);">${reto ? `Reto del ${p.startNum} al ${p.endNum}` : `Fecha límite: ${flong(p.targetDate + 'T00:00:00')}`}</p>
                     </div>
-                </div>
-                <div id="plans-container" class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- Inyectado por JS -->
-                </div>
-            </div>
-
-            <!-- VISTA: AGREGAR PLAN -->
-            <div id="view-add" class="hidden fade-in max-w-2xl mx-auto bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
-                <div class="bg-slate-50 px-8 py-6 border-b border-slate-200 flex items-center gap-4">
-                    <button onclick="window.showView('list')" class="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-500">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+                    <button class="btn btn-quiet btn-sm flex-none" data-act="delete-goal" data-id="${p.id}" aria-label="Eliminar meta" style="color: var(--neg);">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                     </button>
-                    <div>
-                        <h2 class="text-xl font-bold text-slate-800">Nueva Meta de Ahorro</h2>
-                        <p class="text-sm text-slate-500">Configura tu próximo objetivo</p>
-                    </div>
                 </div>
-                <form id="form-add-plan" class="p-8 space-y-8">
-                    <div class="space-y-6">
-                        <div>
-                            <label class="block text-sm font-semibold text-slate-700 mb-2">Nombre de la Meta *</label>
-                            <input type="text" id="planName" required class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none transition-all" placeholder="Ej. Viaje a la playa, Nuevo Celular...">
-                        </div>
-
-                        <div>
-                            <label class="block text-sm font-semibold text-slate-700 mb-2">Tipo de Ahorro *</label>
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <label class="relative flex flex-col p-4 border-2 border-slate-200 rounded-2xl cursor-pointer hover:border-amber-300 transition-all has-[:checked]:border-amber-600 has-[:checked]:bg-amber-50">
-                                    <input type="radio" name="planType" value="challenge" checked class="sr-only">
-                                    <span class="font-bold text-slate-800">Reto de Números</span>
-                                    <span class="text-xs text-slate-500">Ej. Del 1 al 365, ahorras el número marcado.</span>
-                                </label>
-                                <label class="relative flex flex-col p-4 border-2 border-slate-200 rounded-2xl cursor-pointer hover:border-amber-300 transition-all has-[:checked]:border-amber-600 has-[:checked]:bg-amber-50">
-                                    <input type="radio" name="planType" value="calendar" class="sr-only">
-                                    <span class="font-bold text-slate-800">Meta por Fecha</span>
-                                    <span class="text-xs text-slate-500">Define un monto y una fecha límite.</span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <!-- Configuración Reto de Números -->
-                        <div id="config-challenge" class="space-y-4">
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-sm font-semibold text-slate-700 mb-2">Número Inicial</label>
-                                    <input type="number" id="startNum" value="1" min="1" class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none transition-all">
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-semibold text-slate-700 mb-2">Número Final</label>
-                                    <input type="number" id="endNum" value="500" min="2" class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none transition-all">
-                                </div>
-                            </div>
-                            <p class="text-sm text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline mr-1 text-amber-600"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-                                Ahorrarás cada número entre <span id="summary-range" class="font-bold">1 y 500</span>. 
-                                Total a ahorrar: <span id="summary-total-challenge" class="font-bold">L 125,250.00</span>
-                            </p>
-                        </div>
-
-                        <!-- Configuración Meta por Fecha -->
-                        <div id="config-calendar" class="hidden space-y-4">
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-sm font-semibold text-slate-700 mb-2">Monto Objetivo</label>
-                                    <input type="number" id="targetAmount" min="1" step="0.01" class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none transition-all" placeholder="0.00">
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-semibold text-slate-700 mb-2">Fecha Límite</label>
-                                    <input type="date" id="targetDate" class="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none transition-all">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="pt-6 border-t border-slate-200 flex justify-end gap-4">
-                        <button type="button" onclick="window.showView('list')" class="px-6 py-3 text-slate-600 hover:bg-slate-100 rounded-xl transition-colors font-bold">Cancelar</button>
-                        <button type="submit" class="px-8 py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl transition-colors font-bold shadow-lg shadow-amber-200 flex items-center gap-2">
-                            Crear Meta
-                        </button>
-                    </div>
-                </form>
+                <p class="tag mt-5">Ahorrado</p>
+                <p class="num text-[30px] leading-none mt-2">${money(t.saved)}</p>
+                <div class="meter mt-4" style="max-width: 320px;"><i style="width:${pct}%"></i></div>
+                <p class="text-[12.5px] mt-2" style="color: var(--ink-3);">${Math.round(pct)}% de <span class="num">${money(t.target)}</span> · faltan <span class="num">${money(Math.max(0, t.target - t.saved))}</span></p>
             </div>
-
-            <!-- VISTA: DETALLE DE PLAN -->
-            <div id="view-detail" class="hidden fade-in space-y-6">
-                <!-- Inyectado por JS -->
+            <div class="kpi">
+                ${reto ? `<div><p class="tag">Marcados</p><p class="num text-[14.5px] mt-1.5">${(p.savedItems || []).length}</p></div>
+                          <div><p class="tag">Restantes</p><p class="num text-[14.5px] mt-1.5">${t.count - (p.savedItems || []).length}</p></div>` : extraKpi}
+                <div><p class="tag">Faltante</p><p class="num text-[14.5px] mt-1.5">${money(Math.max(0, t.target - t.saved))}</p></div>
             </div>
-        </main>
-    </div>
+        </div>
+        ${cuerpo}
+    </div>`;
+}
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc, query, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+/* ============================================================
+   FORMULARIOS
+   ============================================================ */
+const footerBtns = (act, label, id = '') => `
+    <div class="flex gap-2.5 justify-end pt-1">
+        <button type="button" class="btn btn-outline" data-act="close-dialog">Cancelar</button>
+        <button type="button" class="btn btn-primary" data-primary data-act="${act}" data-id="${id}">${label}</button>
+    </div>`;
 
-        // --- CONFIGURACIÓN DE FIREBASE ---
-        const firebaseConfig = {
-            apiKey: "AIzaSyAnLru6yhw9huXN25LV4kGmCfXL843o4TA",
-            authDomain: "presta-57302.firebaseapp.com",
-            projectId: "presta-57302",
-            storageBucket: "presta-57302.firebasestorage.app",
-            messagingSenderId: "636802344217",
-            appId: "1:636802344217:web:46fa0418609d69eb841188"
-        };
+const chipRow = (list, sel, act) => list.map(x =>
+    `<button type="button" class="chip" aria-pressed="${x === sel}" data-act="${act}" data-v="${esc(x)}">${esc(x)}</button>`).join('');
 
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
+function dialogFund(id = null) {
+    const f = id ? funds.find(x => x.id === id) : null;
+    const sel = f?.color || 'azul';
+    openDialog(`
+    <h2 class="text-[17px] font-semibold mb-5">${f ? 'Editar fondo' : 'Nuevo fondo'}</h2>
+    <div class="space-y-4">
+        <div>
+            <label class="label" for="fName">Nombre del fondo</label>
+            <input id="fName" class="field" maxlength="40" placeholder="Ahorro general, Emergencias, Negocio…" value="${esc(f?.name || '')}" data-autofocus>
+        </div>
+        <div>
+            <span class="label">Color de referencia</span>
+            <div class="flex gap-2" id="fColor" data-v="${sel}">
+                ${Object.entries(COLORS).map(([k, hex]) => `<button type="button" data-act="pick-color" data-v="${k}" aria-label="${k}" aria-pressed="${k === sel}"
+                    class="w-8 h-8 rounded-md transition-all" style="background:${hex}; ${k === sel ? 'box-shadow: 0 0 0 2px var(--sheet), 0 0 0 4px ' + hex : 'opacity:.4'}"></button>`).join('')}
+            </div>
+        </div>
+        ${f ? '' : `
+        <div>
+            <label class="label" for="fStart">Saldo inicial <span class="hint">— lo que ya tienes guardado</span></label>
+            <input id="fStart" class="field field-num" type="number" step="0.01" inputmode="decimal" placeholder="0.00">
+        </div>`}
+        <div>
+            <label class="label" for="fGoal">Meta del fondo <span class="hint">— opcional</span></label>
+            <input id="fGoal" class="field field-num" type="number" step="0.01" inputmode="decimal" placeholder="0.00" value="${f?.goal || ''}">
+        </div>
+        ${footerBtns(f ? 'save-fund-edit' : 'save-fund', f ? 'Guardar cambios' : 'Crear fondo', f?.id || '')}
+    </div>`);
+}
 
-        enableIndexedDbPersistence(db).catch(() => {});
+function dialogMovement(fundId, type) {
+    const f = funds.find(x => x.id === fundId);
+    if (!f) return;
+    const inn = type === 'in';
+    openDialog(`
+    <h2 class="text-[17px] font-semibold mb-1">${inn ? 'Registrar ingreso' : 'Registrar retiro'}</h2>
+    <p class="text-[13px] mb-5" style="color: var(--ink-3);">${esc(f.name)} · saldo actual <span class="num">${money(balanceOf(f))}</span></p>
+    <div class="space-y-4">
+        <div>
+            <label class="label" for="mAmount">Monto</label>
+            <input id="mAmount" class="field field-num text-[19px] font-semibold" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00" data-autofocus>
+            <div class="flex flex-wrap gap-1.5 mt-2">
+                ${[100, 500, 1000, 5000].map(v => `<button type="button" class="chip" data-act="set-amount" data-v="${v}">${v.toLocaleString('es-HN')}</button>`).join('')}
+                ${!inn && balanceOf(f) > 0 ? `<button type="button" class="chip" data-act="set-amount" data-v="${balanceOf(f)}">Todo el saldo</button>` : ''}
+            </div>
+        </div>
+        <div>
+            <span class="label">Categoría</span>
+            <div class="flex flex-wrap gap-1.5" id="mCat" data-v="${CATS[type][0]}">${chipRow(CATS[type], CATS[type][0], 'pick-cat')}</div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+                <label class="label" for="mNote">Concepto <span class="hint">— opcional</span></label>
+                <input id="mNote" class="field" maxlength="60" placeholder="${inn ? 'Quincena de julio' : 'Pago de luz'}">
+            </div>
+            <div>
+                <label class="label" for="mDate">Fecha</label>
+                <input id="mDate" class="field" type="date" value="${todayStr()}" max="${todayStr()}">
+            </div>
+        </div>
+        <div class="flex gap-2.5 justify-end pt-1">
+            <button type="button" class="btn btn-outline" data-act="close-dialog">Cancelar</button>
+            <button type="button" class="btn btn-primary" data-primary data-act="save-mov" data-id="${fundId}" data-type="${type}">${inn ? 'Ingresar' : 'Retirar'}</button>
+        </div>
+    </div>`);
+}
 
-        let globalPlans = [];
-        let activePlanId = null;
-        let unsubscribeSnapshot = null;
+function dialogEditMovement(fundId, movId) {
+    const f = funds.find(x => x.id === fundId);
+    const m = movs(f).find(x => x.id === movId);
+    if (!m) return;
+    const cats = [...new Set([...CATS.in, ...CATS.out, m.category].filter(Boolean))];
+    openDialog(`
+    <h2 class="text-[17px] font-semibold mb-5">Corregir movimiento</h2>
+    <div class="space-y-4">
+        <div>
+            <span class="label">Tipo</span>
+            <div class="flex gap-1.5" id="mType" data-v="${m.type}">
+                <button type="button" class="chip" data-act="pick-type" data-type="in"  aria-pressed="${m.type !== 'out'}">Entrada</button>
+                <button type="button" class="chip" data-act="pick-type" data-type="out" aria-pressed="${m.type === 'out'}">Salida</button>
+            </div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+                <label class="label" for="mAmount">Monto</label>
+                <input id="mAmount" class="field field-num" type="number" step="0.01" min="0" inputmode="decimal" value="${m.amount}" data-autofocus>
+            </div>
+            <div>
+                <label class="label" for="mDate">Fecha</label>
+                <input id="mDate" class="field" type="date" value="${isoToDate(m.date)}">
+            </div>
+        </div>
+        <div>
+            <span class="label">Categoría</span>
+            <div class="flex flex-wrap gap-1.5" id="mCat" data-v="${esc(m.category || '')}">${chipRow(cats, m.category, 'pick-cat')}</div>
+        </div>
+        <div>
+            <label class="label" for="mNote">Concepto</label>
+            <input id="mNote" class="field" maxlength="60" value="${esc(m.note || '')}">
+        </div>
+        <div class="flex gap-2.5 justify-between pt-1">
+            <button type="button" class="btn btn-danger" data-act="delete-mov" data-id="${fundId}" data-mid="${movId}">Borrar</button>
+            <div class="flex gap-2.5">
+                <button type="button" class="btn btn-outline" data-act="close-dialog">Cancelar</button>
+                <button type="button" class="btn btn-primary" data-primary data-act="update-mov" data-id="${fundId}" data-mid="${movId}">Guardar</button>
+            </div>
+        </div>
+    </div>`);
+}
 
-        const formatCurrency = (amount) => new Intl.NumberFormat('es-HN', { style: 'currency', currency: 'HNL' }).format(amount || 0).replace('HNL', 'L');
+function dialogTransfer(fromId) {
+    const from = fromId || funds[0]?.id;
+    const to = funds.find(f => f.id !== from)?.id;
+    const opts = (sel) => funds.map(f => `<option value="${f.id}" ${f.id === sel ? 'selected' : ''}>${esc(f.name)} — ${money(balanceOf(f))}</option>`).join('');
+    openDialog(`
+    <h2 class="text-[17px] font-semibold mb-5">Traspaso entre fondos</h2>
+    <div class="space-y-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div><label class="label" for="tFrom">Sale de</label><select id="tFrom" class="field">${opts(from)}</select></div>
+            <div><label class="label" for="tTo">Entra a</label><select id="tTo" class="field">${opts(to)}</select></div>
+        </div>
+        <div>
+            <label class="label" for="tAmount">Monto</label>
+            <input id="tAmount" class="field field-num text-[19px] font-semibold" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00" data-autofocus>
+        </div>
+        <p class="text-[12.5px]" style="color: var(--ink-3);">Se registra una salida en el primer fondo y una entrada en el segundo, con la misma fecha.</p>
+        ${footerBtns('save-transfer', 'Traspasar')}
+    </div>`);
+}
 
-        // --- INICIALIZACIÓN ---
-        async function initApp() {
-            onAuthStateChanged(auth, (user) => {
-                document.getElementById('loading-screen').classList.add('hidden');
-                document.getElementById('app-content').classList.remove('hidden');
-                loadData();
+function dialogGoal() {
+    openDialog(`
+    <h2 class="text-[17px] font-semibold mb-5">Nueva meta</h2>
+    <div class="space-y-4">
+        <div>
+            <label class="label" for="gName">Nombre</label>
+            <input id="gName" class="field" maxlength="40" placeholder="Viaje, celular nuevo…" data-autofocus>
+        </div>
+        <div>
+            <span class="label">Tipo de meta</span>
+            <div class="flex gap-1.5" id="gType" data-v="challenge">
+                <button type="button" class="chip" data-act="pick-goal-type" data-v="challenge" aria-pressed="true">Reto de números</button>
+                <button type="button" class="chip" data-act="pick-goal-type" data-v="calendar" aria-pressed="false">Meta por fecha</button>
+            </div>
+        </div>
+        <div id="cfg-challenge" class="space-y-2">
+            <div class="grid grid-cols-2 gap-3">
+                <div><label class="label" for="gStart">Del número</label><input id="gStart" class="field field-num" type="number" inputmode="numeric" value="1" min="1"></div>
+                <div><label class="label" for="gEnd">Al número</label><input id="gEnd" class="field field-num" type="number" inputmode="numeric" value="100" min="2"></div>
+            </div>
+            <p class="text-[12.5px]" style="color: var(--ink-3);">Ahorras cada número una sola vez. Total del reto: <span class="num" id="gSum" style="color: var(--ink);">L 5,050.00</span></p>
+        </div>
+        <div id="cfg-calendar" class="hidden grid grid-cols-2 gap-3">
+            <div><label class="label" for="gTarget">Monto meta</label><input id="gTarget" class="field field-num" type="number" step="0.01" inputmode="decimal" placeholder="0.00"></div>
+            <div><label class="label" for="gDate">Fecha límite</label><input id="gDate" class="field" type="date"></div>
+        </div>
+        ${footerBtns('save-goal', 'Crear meta')}
+    </div>`);
+    const d = new Date(); d.setMonth(d.getMonth() + 3);
+    $('#gDate').value = isoToDate(d.toISOString());
+    const upd = () => {
+        const a = parseInt($('#gStart').value) || 0, b = parseInt($('#gEnd').value) || 0;
+        const n = Math.max(0, b - a + 1);
+        $('#gSum').textContent = money(n > 0 ? (n * (a + b)) / 2 : 0);
+    };
+    $('#gStart').addEventListener('input', upd);
+    $('#gEnd').addEventListener('input', upd);
+    upd();
+}
+
+function dialogDeposit(planId) {
+    const p = plans.find(x => x.id === planId);
+    if (!p) return;
+    const t = planTotals(p);
+    openDialog(`
+    <h2 class="text-[17px] font-semibold mb-1">Registrar abono</h2>
+    <p class="text-[13px] mb-5" style="color: var(--ink-3);">${esc(p.name)} · faltan <span class="num">${money(Math.max(0, t.target - t.saved))}</span></p>
+    <div class="space-y-4">
+        <div>
+            <label class="label" for="dAmount">Monto</label>
+            <input id="dAmount" class="field field-num text-[19px] font-semibold" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00" data-autofocus>
+            <div class="flex flex-wrap gap-1.5 mt-2">
+                ${[100, 500, 1000, 2000].map(v => `<button type="button" class="chip" data-act="set-amount-d" data-v="${v}">${v.toLocaleString('es-HN')}</button>`).join('')}
+            </div>
+        </div>
+        ${footerBtns('save-deposit', 'Abonar', planId)}
+    </div>`);
+}
+
+function pickFund(type) {
+    if (funds.length === 0) return dialogFund();
+    if (funds.length === 1) return dialogMovement(funds[0].id, type);
+    openDialog(`
+    <h2 class="text-[17px] font-semibold mb-1">${type === 'in' ? 'Registrar ingreso' : 'Registrar retiro'}</h2>
+    <p class="text-[13px] mb-4" style="color: var(--ink-3);">Elige el fondo</p>
+    <div style="border: 1px solid var(--rule); border-radius: var(--radius); overflow: hidden;">
+        ${funds.map(f => {
+            const c = colorOf(f);
+            return `<div class="list-row" data-act="mov" data-id="${f.id}" data-type="${type}">
+                <span class="mono-tile" style="background:${tint(c, .1)}; color:${c};">${esc(monogram(f.name))}</span>
+                <span class="flex-1 min-w-0 text-[14.5px] font-semibold truncate">${esc(f.name)}</span>
+                <span class="num text-[14.5px]">${money(balanceOf(f))}</span>
+            </div>`;
+        }).join('')}
+    </div>`);
+}
+
+/* ============================================================
+   ESCRITURAS
+   ============================================================ */
+const num = (sel) => { const v = parseFloat(($(sel)?.value || '').replace(',', '.')); return isNaN(v) ? 0 : v; };
+
+async function createFund() {
+    const name = ($('#fName').value || '').trim();
+    if (!name) { notice('Escribe el nombre del fondo', 'neg'); $('#fName').focus(); return; }
+    const inicial = num('#fStart'), goal = num('#fGoal');
+    const data = {
+        name, color: $('#fColor').dataset.v, goal: goal > 0 ? goal : null,
+        createdAt: new Date().toISOString(),
+        movements: inicial !== 0 ? [{ id: uid(), type: inicial > 0 ? 'in' : 'out', amount: Math.abs(inicial), category: 'Saldo inicial', note: 'Saldo inicial', date: new Date().toISOString() }] : []
+    };
+    try {
+        const ref = await addDoc(collection(db, FUNDS), data);
+        closeDialog(); notice('Fondo creado', 'pos'); go('fund', ref.id);
+    } catch (e) { notice('No se pudo crear: ' + e.message, 'neg'); }
+}
+
+async function saveFundEdit(id) {
+    const name = ($('#fName').value || '').trim();
+    if (!name) { notice('Escribe el nombre del fondo', 'neg'); return; }
+    const goal = num('#fGoal');
+    try {
+        await updateDoc(doc(db, FUNDS, id), { name, color: $('#fColor').dataset.v, goal: goal > 0 ? goal : null });
+        closeDialog(); notice('Fondo actualizado');
+    } catch (e) { notice('No se pudo guardar: ' + e.message, 'neg'); }
+}
+
+async function saveMovement(fundId, type) {
+    const f = funds.find(x => x.id === fundId);
+    const amount = num('#mAmount');
+    if (amount <= 0) { notice('Escribe un monto mayor a cero', 'neg'); $('#mAmount').focus(); return; }
+
+    if (type === 'out') {
+        const saldo = balanceOf(f);
+        if (amount > saldo) {
+            const ok = await askConfirm({
+                title: 'El retiro supera el saldo', danger: true, label: 'Registrar igual',
+                body: `El fondo tiene <span class="num">${money(saldo)}</span> y vas a retirar <span class="num">${money(amount)}</span>. Quedaría en <span class="num neg">${money(saldo - amount)}</span>.`
             });
-            await signInAnonymously(auth).catch(() => {});
-            setupEventListeners();
+            if (!ok) return;
         }
+    }
+    const mov = {
+        id: uid(), type, amount,
+        category: $('#mCat').dataset.v || '',
+        note: ($('#mNote').value || '').trim(),
+        date: dateToISO($('#mDate').value || todayStr())
+    };
+    try {
+        await updateDoc(doc(db, FUNDS, fundId), { movements: arrayUnion(mov) });
+        closeDialog();
+        notice(`${type === 'in' ? 'Ingreso' : 'Retiro'} de ${money(amount)} registrado`, type === 'in' ? 'pos' : 'neg');
+    } catch (e) { notice('No se pudo guardar: ' + e.message, 'neg'); }
+}
 
-        function setupEventListeners() {
-            // Cambio de tipo de plan
-            document.querySelectorAll('input[name="planType"]').forEach(radio => {
-                radio.addEventListener('change', (e) => {
-                    if (e.target.value === 'challenge') {
-                        document.getElementById('config-challenge').classList.remove('hidden');
-                        document.getElementById('config-calendar').classList.add('hidden');
-                    } else {
-                        document.getElementById('config-challenge').classList.add('hidden');
-                        document.getElementById('config-calendar').classList.remove('hidden');
-                    }
-                });
+async function updateMovement(fundId, movId) {
+    const f = funds.find(x => x.id === fundId);
+    const amount = num('#mAmount');
+    if (amount <= 0) { notice('Escribe un monto mayor a cero', 'neg'); return; }
+    const list = movs(f).map(m => m.id === movId ? {
+        ...m, amount, type: $('#mType').dataset.v,
+        category: $('#mCat').dataset.v || '',
+        note: ($('#mNote').value || '').trim(),
+        date: dateToISO($('#mDate').value)
+    } : m);
+    try {
+        await updateDoc(doc(db, FUNDS, fundId), { movements: list });
+        closeDialog(); notice('Movimiento corregido');
+    } catch (e) { notice('No se pudo guardar: ' + e.message, 'neg'); }
+}
+
+async function deleteMovement(fundId, movId) {
+    const ok = await askConfirm({ title: 'Borrar movimiento', danger: true, label: 'Borrar',
+        body: 'El saldo del fondo se recalcula sin este movimiento.' });
+    if (!ok) return;
+    const f = funds.find(x => x.id === fundId);
+    try {
+        await updateDoc(doc(db, FUNDS, fundId), { movements: movs(f).filter(m => m.id !== movId) });
+        notice('Movimiento borrado');
+    } catch (e) { notice('No se pudo borrar: ' + e.message, 'neg'); }
+}
+
+async function saveTransfer() {
+    const fromId = $('#tFrom').value, toId = $('#tTo').value, amount = num('#tAmount');
+    if (fromId === toId) { notice('Elige dos fondos distintos', 'neg'); return; }
+    if (amount <= 0) { notice('Escribe un monto mayor a cero', 'neg'); return; }
+    const from = funds.find(f => f.id === fromId), to = funds.find(f => f.id === toId);
+    if (amount > balanceOf(from)) {
+        const ok = await askConfirm({
+            title: 'El traspaso supera el saldo', danger: true, label: 'Traspasar igual',
+            body: `${esc(from.name)} tiene <span class="num">${money(balanceOf(from))}</span> y quedaría en <span class="num neg">${money(balanceOf(from) - amount)}</span>.`
+        });
+        if (!ok) return;
+    }
+    const tid = uid(), date = new Date().toISOString();
+    try {
+        const batch = writeBatch(db);
+        batch.update(doc(db, FUNDS, fromId), { movements: arrayUnion({ id: uid(), type: 'out', amount, category: 'Traspaso', note: `Hacia ${to.name}`, date, transferId: tid }) });
+        batch.update(doc(db, FUNDS, toId),   { movements: arrayUnion({ id: uid(), type: 'in',  amount, category: 'Traspaso', note: `Desde ${from.name}`, date, transferId: tid }) });
+        await batch.commit();
+        closeDialog(); notice(`Traspaso de ${money(amount)} realizado`, 'pos');
+    } catch (e) { notice('No se pudo traspasar: ' + e.message, 'neg'); }
+}
+
+async function deleteFund(id) {
+    const f = funds.find(x => x.id === id);
+    const ok = await askConfirm({
+        title: 'Eliminar fondo', danger: true, key: true, label: 'Eliminar',
+        body: `Se borra <b>${esc(f.name)}</b> con sus ${movs(f).length} movimientos y su saldo de <span class="num">${money(balanceOf(f))}</span>. No se puede deshacer.`
+    });
+    if (!ok) return;
+    try { await deleteDoc(doc(db, FUNDS, id)); go('funds'); notice('Fondo eliminado'); }
+    catch (e) { notice('No se pudo eliminar: ' + e.message, 'neg'); }
+}
+
+async function createGoal() {
+    const name = ($('#gName').value || '').trim();
+    if (!name) { notice('Escribe el nombre de la meta', 'neg'); return; }
+    const type = $('#gType').dataset.v;
+    const p = { name, type, createdAt: new Date().toISOString(), savedItems: [], deposits: [] };
+    if (type === 'challenge') {
+        p.startNum = parseInt($('#gStart').value) || 1;
+        p.endNum = parseInt($('#gEnd').value) || 100;
+        if (p.endNum <= p.startNum) { notice('El número final debe ser mayor', 'neg'); return; }
+    } else {
+        p.targetAmount = num('#gTarget');
+        p.targetDate = $('#gDate').value;
+        if (p.targetAmount <= 0) { notice('Escribe el monto de la meta', 'neg'); return; }
+        if (!p.targetDate) { notice('Elige la fecha límite', 'neg'); return; }
+    }
+    try {
+        const ref = await addDoc(collection(db, PLANS), p);
+        closeDialog(); notice('Meta creada', 'pos'); go('goal', ref.id);
+    } catch (e) { notice('No se pudo crear: ' + e.message, 'neg'); }
+}
+
+async function toggleNum(planId, n) {
+    const p = plans.find(x => x.id === planId);
+    const cur = (p.savedItems || []).map(Number);
+    const next = cur.includes(n) ? cur.filter(x => x !== n) : [...cur, n];
+    try { await updateDoc(doc(db, PLANS, planId), { savedItems: next }); }
+    catch (e) { notice('No se pudo actualizar: ' + e.message, 'neg'); }
+}
+
+async function saveDeposit(planId) {
+    const amount = num('#dAmount');
+    if (amount <= 0) { notice('Escribe un monto mayor a cero', 'neg'); return; }
+    try {
+        await updateDoc(doc(db, PLANS, planId), { deposits: arrayUnion({ amount, date: new Date().toISOString() }) });
+        closeDialog(); notice(`Abono de ${money(amount)} registrado`, 'pos');
+    } catch (e) { notice('No se pudo guardar: ' + e.message, 'neg'); }
+}
+
+async function deleteGoal(id) {
+    const p = plans.find(x => x.id === id);
+    const ok = await askConfirm({ title: 'Eliminar meta', danger: true, key: true, label: 'Eliminar',
+        body: `Se borra <b>${esc(p.name)}</b> y todo su progreso. No se puede deshacer.` });
+    if (!ok) return;
+    try { await deleteDoc(doc(db, PLANS, id)); go('goals'); notice('Meta eliminada'); }
+    catch (e) { notice('No se pudo eliminar: ' + e.message, 'neg'); }
+}
+
+function exportFund(id) {
+    const f = funds.find(x => x.id === id);
+    const q = (s) => `"${String(s ?? '').replace(/"/g, '""')}"`;
+    const rows = [['Fecha', 'Hora', 'Tipo', 'Categoria', 'Concepto', 'Monto', 'Saldo']];
+    withRunning(f).forEach(m => {
+        rows.push([isoToDate(m.date), ftime(m.date), m.type === 'out' ? 'Salida' : 'Entrada', m.category || '', m.note || '',
+                   (m.type === 'out' ? -Number(m.amount) : Number(m.amount)).toFixed(2), m.saldo.toFixed(2)]);
+    });
+    const csv = '\uFEFF' + rows.map(r => r.map(q).join(',')).join('\r\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = `${f.name.replace(/[^\w\s-]/g, '').trim()}-${todayStr()}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    notice('Archivo descargado');
+}
+
+/* ============================================================
+   EVENTOS
+   ============================================================ */
+document.addEventListener('click', (e) => {
+    const tab = e.target.closest('.tab[data-tab]');
+    if (tab) { go(tab.dataset.tab); return; }
+
+    const el = e.target.closest('[data-act]');
+    if (!el || el.disabled) return;
+    const { act, id, mid, type, v, num: n, filter } = el.dataset;
+
+    switch (act) {
+        case 'close-dialog':  closeDialog(); break;
+        case 'tab-funds':     closeDialog(); go('funds'); break;
+        case 'tab-goals':     closeDialog(); go('goals'); break;
+        case 'open-fund':     movFilter = 'all'; go('fund', id); break;
+        case 'open-goal':     go('goal', id); break;
+
+        case 'new-fund':      dialogFund(); break;
+        case 'edit-fund':     dialogFund(id); break;
+        case 'delete-fund':   deleteFund(id); break;
+        case 'export-fund':   exportFund(id); break;
+
+        case 'quick-in':      pickFund('in'); break;
+        case 'quick-out':     pickFund('out'); break;
+        case 'mov':           dialogMovement(id, type); break;
+        case 'transfer':      dialogTransfer(id); break;
+        case 'edit-mov':      dialogEditMovement(id, mid); break;
+        case 'filter':        movFilter = filter; render(); break;
+
+        case 'save-fund':      createFund(); break;
+        case 'save-fund-edit': saveFundEdit(id); break;
+        case 'save-mov':       saveMovement(id, type); break;
+        case 'update-mov':     updateMovement(id, mid); break;
+        case 'delete-mov':     deleteMovement(id, mid); break;
+        case 'save-transfer':  saveTransfer(); break;
+
+        case 'new-goal':      dialogGoal(); break;
+        case 'save-goal':     createGoal(); break;
+        case 'delete-goal':   deleteGoal(id); break;
+        case 'toggle-num':    toggleNum(id, Number(n)); break;
+        case 'deposit':       dialogDeposit(id); break;
+        case 'save-deposit':  saveDeposit(id); break;
+
+        case 'set-amount':   $('#mAmount').value = v; $('#mAmount').focus(); break;
+        case 'set-amount-d': $('#dAmount').value = v; $('#dAmount').focus(); break;
+        case 'pick-color':
+            $('#fColor').dataset.v = v;
+            $('#fColor').querySelectorAll('[data-act="pick-color"]').forEach(b => {
+                const hex = COLORS[b.dataset.v], on = b.dataset.v === v;
+                b.setAttribute('aria-pressed', on);
+                b.style.cssText = `background:${hex}; ${on ? 'box-shadow: 0 0 0 2px var(--sheet), 0 0 0 4px ' + hex : 'opacity:.4'}`;
             });
+            break;
+        case 'pick-cat':
+            $('#mCat').dataset.v = v;
+            $('#mCat').querySelectorAll('.chip').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === v));
+            break;
+        case 'pick-type':
+            $('#mType').dataset.v = type;
+            $('#mType').querySelectorAll('.chip').forEach(b => b.setAttribute('aria-pressed', b.dataset.type === type));
+            break;
+        case 'pick-goal-type':
+            $('#gType').dataset.v = v;
+            $('#gType').querySelectorAll('.chip').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === v));
+            $('#cfg-challenge').classList.toggle('hidden', v !== 'challenge');
+            $('#cfg-calendar').classList.toggle('hidden', v !== 'calendar');
+            break;
+    }
+});
 
-            // Resumen de reto de números
-            const updateChallengeSummary = () => {
-                const start = parseInt(document.getElementById('startNum').value) || 0;
-                const end = parseInt(document.getElementById('endNum').value) || 0;
-                const count = Math.max(0, end - start + 1);
-                const sum = count > 0 ? (count * (start + end)) / 2 : 0;
-                
-                document.getElementById('summary-range').textContent = `${start} y ${end}`;
-                document.getElementById('summary-total-challenge').textContent = formatCurrency(sum);
-            };
-            document.getElementById('startNum').addEventListener('input', updateChallengeSummary);
-            document.getElementById('endNum').addEventListener('input', updateChallengeSummary);
+document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || !dialogOpen) return;
+    if (!e.target.closest('#dialog') || e.target.tagName === 'TEXTAREA') return;
+    const primary = $('#dialog [data-primary]') || $('#dialog [data-confirm="1"]');
+    if (primary) { e.preventDefault(); primary.click(); }
+});
 
-            // Formulario de creación
-            document.getElementById('form-add-plan').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const type = document.querySelector('input[name="planType"]:checked').value;
-                const newPlan = {
-                    name: document.getElementById('planName').value,
-                    type: type,
-                    createdAt: new Date().toISOString(),
-                    savedItems: [], // Para reto de números: array de números ya ahorrados
-                    deposits: [],   // Para meta por fecha: array de {amount, date}
-                };
+/* ---------------- Tema ---------------- */
+(function theme() {
+    const saved = localStorage.getItem('pc-theme');
+    const dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('#theme-btn')) return;
+        const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+        document.documentElement.dataset.theme = next;
+        localStorage.setItem('pc-theme', next);
+        document.querySelector('meta[name="theme-color"]')?.setAttribute('content', next === 'dark' ? '#101216' : '#F6F5F2');
+    });
+})();
 
-                if (type === 'challenge') {
-                    newPlan.startNum = parseInt(document.getElementById('startNum').value);
-                    newPlan.endNum = parseInt(document.getElementById('endNum').value);
-                } else {
-                    newPlan.targetAmount = parseFloat(document.getElementById('targetAmount').value);
-                    newPlan.targetDate = document.getElementById('targetDate').value;
-                }
+/* ---------------- Arranque ---------------- */
+function boot() {
+    const b = $('#boot');
+    if (!b || b.classList.contains('hidden')) return;
+    b.classList.add('hidden');
+    $('#app').classList.remove('hidden');
+    history.replaceState({ view: 'home', id: null }, '');
+    render();
+}
 
-                try {
-                    await addDoc(collection(db, 'savings_plans'), newPlan);
-                    window.showView('list');
-                } catch (err) {
-                    alert('Error al guardar: ' + err.message);
-                }
-            });
-        }
+let subscribed = false;
+function subscribe() {
+    if (subscribed) return;
+    subscribed = true;
+    onSnapshot(query(collection(db, FUNDS)), (snap) => {
+        funds = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+        boot(); render();
+    }, (err) => { boot(); notice('Sin conexión con la nube', 'neg'); console.error(err); });
 
-        function loadData() {
-            if (unsubscribeSnapshot) unsubscribeSnapshot();
-            const plansRef = collection(db, 'savings_plans');
-            unsubscribeSnapshot = onSnapshot(query(plansRef), (snapshot) => {
-                globalPlans = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                globalPlans.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-                
-                if (activePlanId) {
-                    const plan = globalPlans.find(p => p.id === activePlanId);
-                    if (plan) renderDetail(plan);
-                    else window.showView('list');
-                } else {
-                    renderList();
-                }
-            });
-        }
+    onSnapshot(query(collection(db, PLANS)), (snap) => {
+        plans = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        boot(); render();
+    }, (err) => { boot(); console.error(err); });
+}
 
-        window.showView = (viewName, planId = null) => {
-            document.getElementById('view-list').classList.add('hidden');
-            document.getElementById('view-add').classList.add('hidden');
-            document.getElementById('view-detail').classList.add('hidden');
-            document.getElementById('btn-new-plan').classList.remove('hidden');
+onAuthStateChanged(auth, () => subscribe());
+signInAnonymously(auth).catch(() => { $('#boot-text').textContent = 'Trabajando sin conexión'; subscribe(); });
+setTimeout(boot, 5000);
 
-            if (viewName === 'list') {
-                activePlanId = null;
-                renderList();
-                document.getElementById('view-list').classList.remove('hidden');
-            } else if (viewName === 'add') {
-                document.getElementById('btn-new-plan').classList.add('hidden');
-                document.getElementById('form-add-plan').reset();
-                document.getElementById('view-add').classList.remove('hidden');
-                // Set default date to 1 month from now
-                const d = new Date();
-                d.setMonth(d.getMonth() + 1);
-                document.getElementById('targetDate').value = d.toISOString().split('T')[0];
-            } else if (viewName === 'detail' && planId) {
-                activePlanId = planId;
-                const plan = globalPlans.find(p => p.id === planId);
-                if (plan) {
-                    renderDetail(plan);
-                    document.getElementById('view-detail').classList.remove('hidden');
-                }
-            }
-        };
-
-        function renderList() {
-            const container = document.getElementById('plans-container');
-            if (globalPlans.length === 0) {
-                container.innerHTML = `
-                    <div class="col-span-full py-20 text-center bg-white rounded-3xl border-2 border-dashed border-slate-200">
-                        <div class="inline-flex p-4 bg-amber-50 text-amber-600 rounded-2xl mb-4">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 5c-1.5 0-2.8 1.4-3 2-0.2-0.6-1.5-2-3-2V5c1.5 0 2.8 1.4 3 2 0.2-0.6 1.5-2 3-2V5z"/><path d="M7 19c-1.5 0-2.8-1.4-3-2 0.2 0.6 1.5 2 3 2v2c-1.5 0-2.8-1.4-3-2 0.2 0.6 1.5 2 3 2v-2z"/></svg>
-                        </div>
-                        <h3 class="text-xl font-bold text-slate-800">No hay metas activas</h3>
-                        <p class="text-slate-500 mt-2 mb-6">Comienza tu primer plan de ahorro hoy mismo.</p>
-                        <button onclick="window.showView('add')" class="px-6 py-3 bg-amber-600 text-white rounded-xl font-bold hover:bg-amber-700 transition-colors shadow-lg shadow-amber-100">Crear mi primera meta</button>
-                    </div>
-                `;
-                return;
-            }
-
-            container.innerHTML = globalPlans.map(plan => {
-                let progress = 0;
-                let totalSaved = 0;
-                let target = 0;
-
-                if (plan.type === 'challenge') {
-                    const count = plan.endNum - plan.startNum + 1;
-                    target = (count * (plan.startNum + plan.endNum)) / 2;
-                    totalSaved = plan.savedItems.reduce((a, b) => a + b, 0);
-                    progress = (totalSaved / target) * 100;
-                } else {
-                    target = plan.targetAmount;
-                    totalSaved = plan.deposits.reduce((a, b) => a + b.amount, 0);
-                    progress = (totalSaved / target) * 100;
-                }
-
-                return `
-                    <div onclick="window.showView('detail', '${plan.id}')" class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 hover:shadow-xl hover:border-amber-300 transition-all cursor-pointer group">
-                        <div class="flex justify-between items-start mb-4">
-                            <div class="p-3 ${plan.type === 'challenge' ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-600'} rounded-2xl">
-                                ${plan.type === 'challenge' ? 
-                                    '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m11 17 2 2 4-4"/><rect x="3" y="4" width="18" height="16" rx="2"/></svg>' : 
-                                    '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg>'}
-                            </div>
-                            <span class="text-xs font-bold px-2 py-1 bg-slate-100 text-slate-500 rounded-lg">${plan.type === 'challenge' ? 'Reto Números' : 'Meta Fecha'}</span>
-                        </div>
-                        <h3 class="text-xl font-bold text-slate-800 mb-1 group-hover:text-amber-700 transition-colors">${plan.name}</h3>
-                        <div class="flex justify-between text-sm mb-2">
-                            <span class="text-slate-500">Progreso</span>
-                            <span class="font-bold text-slate-700">${Math.round(progress)}%</span>
-                        </div>
-                        <div class="w-full bg-slate-100 h-3 rounded-full overflow-hidden mb-4">
-                            <div class="bg-amber-500 h-full transition-all duration-1000" style="width: ${progress}%"></div>
-                        </div>
-                        <div class="flex justify-between items-end">
-                            <div>
-                                <p class="text-xs text-slate-400 uppercase font-bold tracking-wider">Ahorrado</p>
-                                <p class="text-lg font-black text-slate-800">${formatCurrency(totalSaved)}</p>
-                            </div>
-                            <div class="text-right">
-                                <p class="text-xs text-slate-400 uppercase font-bold tracking-wider">Objetivo</p>
-                                <p class="text-sm font-bold text-slate-600">${formatCurrency(target)}</p>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        function renderDetail(plan) {
-            const container = document.getElementById('view-detail');
-            let totalSaved = 0;
-            let target = 0;
-            let content = '';
-
-            if (plan.type === 'challenge') {
-                const count = plan.endNum - plan.startNum + 1;
-                target = (count * (plan.startNum + plan.endNum)) / 2;
-                totalSaved = (plan.savedItems || []).reduce((a, b) => a + b, 0);
-                
-                let numbersHtml = '';
-                for (let i = plan.startNum; i <= plan.endNum; i++) {
-                    const isSaved = (plan.savedItems || []).includes(i);
-                    numbersHtml += `
-                        <div onclick="window.toggleNumber('${plan.id}', ${i})" class="number-box ${isSaved ? 'saved' : 'not-saved'} shadow-sm">
-                            ${i}
-                        </div>
-                    `;
-                }
-
-                content = `
-                    <div class="bg-white rounded-3xl p-8 shadow-sm border border-slate-200">
-                        <div class="flex flex-wrap justify-between items-start gap-4 mb-8">
-                            <div>
-                                <h2 class="text-3xl font-black text-slate-900">${plan.name}</h2>
-                                <p class="text-slate-500">Reto de números del ${plan.startNum} al ${plan.endNum}</p>
-                            </div>
-                            <div class="flex gap-2">
-                                <button onclick="window.deletePlan('${plan.id}')" class="p-3 text-red-500 hover:bg-red-50 rounded-2xl transition-colors">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-                                </button>
-                                <button onclick="window.showView('list')" class="px-6 py-3 bg-slate-100 text-slate-600 rounded-2xl font-bold hover:bg-slate-200 transition-colors">Volver</button>
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                            <div class="bg-amber-50 p-6 rounded-3xl border border-amber-100">
-                                <p class="text-sm font-bold text-amber-800 uppercase tracking-wider mb-1">Ahorrado</p>
-                                <p class="text-3xl font-black text-amber-900">${formatCurrency(totalSaved)}</p>
-                            </div>
-                            <div class="bg-slate-50 p-6 rounded-3xl border border-slate-100">
-                                <p class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1">Faltante</p>
-                                <p class="text-3xl font-black text-slate-800">${formatCurrency(target - totalSaved)}</p>
-                            </div>
-                            <div class="bg-slate-50 p-6 rounded-3xl border border-slate-100">
-                                <p class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1">Total Meta</p>
-                                <p class="text-3xl font-black text-slate-800">${formatCurrency(target)}</p>
-                            </div>
-                        </div>
-
-                        <div class="mb-4 flex justify-between items-center">
-                            <h3 class="text-lg font-bold text-slate-800">Marca tus números</h3>
-                            <span class="text-sm text-slate-500 font-medium">${(plan.savedItems || []).length} de ${count} completados</span>
-                        </div>
-                        <div class="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2">
-                            ${numbersHtml}
-                        </div>
-                    </div>
-                `;
-            } else {
-                target = plan.targetAmount;
-                totalSaved = (plan.deposits || []).reduce((a, b) => a + b.amount, 0);
-                const progress = (totalSaved / target) * 100;
-                
-                // Calcular ahorro necesario por día
-                const today = new Date();
-                const targetDate = new Date(plan.targetDate + 'T23:59:59');
-                const diffTime = targetDate - today;
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                const dailyNeeded = diffDays > 0 ? (target - totalSaved) / diffDays : 0;
-
-                content = `
-                    <div class="bg-white rounded-3xl p-8 shadow-sm border border-slate-200">
-                        <div class="flex flex-wrap justify-between items-start gap-4 mb-8">
-                            <div>
-                                <h2 class="text-3xl font-black text-slate-900">${plan.name}</h2>
-                                <p class="text-slate-500">Meta para el ${new Date(plan.targetDate + 'T00:00:00').toLocaleDateString()}</p>
-                            </div>
-                            <div class="flex gap-2">
-                                <button onclick="window.deletePlan('${plan.id}')" class="p-3 text-red-500 hover:bg-red-50 rounded-2xl transition-colors">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-                                </button>
-                                <button onclick="window.showView('list')" class="px-6 py-3 bg-slate-100 text-slate-600 rounded-2xl font-bold hover:bg-slate-200 transition-colors">Volver</button>
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                            <div class="bg-blue-50 p-6 rounded-3xl border border-blue-100">
-                                <p class="text-sm font-bold text-blue-800 uppercase tracking-wider mb-1">Ahorrado</p>
-                                <p class="text-3xl font-black text-blue-900">${formatCurrency(totalSaved)}</p>
-                            </div>
-                            <div class="bg-slate-50 p-6 rounded-3xl border border-slate-100">
-                                <p class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1">Días restantes</p>
-                                <p class="text-3xl font-black text-slate-800">${Math.max(0, diffDays)}</p>
-                            </div>
-                            <div class="bg-green-50 p-6 rounded-3xl border border-green-100">
-                                <p class="text-sm font-bold text-green-800 uppercase tracking-wider mb-1">Ahorro diario ideal</p>
-                                <p class="text-3xl font-black text-green-900">${formatCurrency(Math.max(0, dailyNeeded))}</p>
-                            </div>
-                        </div>
-
-                        <div class="space-y-4 mb-8">
-                            <div class="flex justify-between text-sm font-bold">
-                                <span class="text-slate-500 uppercase tracking-widest">Progreso de la meta</span>
-                                <span class="text-slate-800">${Math.round(progress)}%</span>
-                            </div>
-                            <div class="w-full bg-slate-100 h-6 rounded-full overflow-hidden border border-slate-200">
-                                <div class="bg-blue-600 h-full transition-all duration-1000 flex items-center justify-end px-2 text-[10px] text-white font-bold" style="width: ${progress}%">
-                                    ${progress > 10 ? Math.round(progress) + '%' : ''}
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                            <div>
-                                <h3 class="text-xl font-bold text-slate-800 mb-4">Registrar Abono</h3>
-                                <form onsubmit="window.addDeposit(event, '${plan.id}')" class="flex gap-2">
-                                    <input type="number" step="0.01" required placeholder="Monto L" class="flex-1 px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
-                                    <button type="submit" class="px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-100">Abonar</button>
-                                </form>
-                            </div>
-                            <div>
-                                <h3 class="text-xl font-bold text-slate-800 mb-4">Historial</h3>
-                                <div class="max-h-60 overflow-y-auto space-y-2 pr-2">
-                                    ${(plan.deposits || []).length === 0 ? '<p class="text-slate-400 text-sm">No hay abonos registrados.</p>' : 
-                                        plan.deposits.sort((a,b) => new Date(b.date) - new Date(a.date)).map(d => `
-                                            <div class="flex justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-100">
-                                                <div>
-                                                    <p class="font-bold text-slate-700">${formatCurrency(d.amount)}</p>
-                                                    <p class="text-xs text-slate-400">${new Date(d.date).toLocaleDateString()} ${new Date(d.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
-                                                </div>
-                                            </div>
-                                        `).join('')
-                                    }
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }
-
-            container.innerHTML = content;
-        }
-
-        window.toggleNumber = async (planId, num) => {
-            const plan = globalPlans.find(p => p.id === planId);
-            if (!plan) return;
-
-            let savedItems = [...(plan.savedItems || [])];
-            if (savedItems.includes(num)) {
-                savedItems = savedItems.filter(i => i !== num);
-            } else {
-                savedItems.push(num);
-            }
-
-            try {
-                await updateDoc(doc(db, 'savings_plans', planId), { savedItems });
-            } catch (err) {
-                alert('Error al actualizar: ' + err.message);
-            }
-        };
-
-        window.addDeposit = async (e, planId) => {
-            e.preventDefault();
-            const input = e.target.querySelector('input');
-            const amount = parseFloat(input.value);
-            if (isNaN(amount) || amount <= 0) return;
-
-            const plan = globalPlans.find(p => p.id === planId);
-            if (!plan) return;
-
-            const deposits = [...(plan.deposits || []), {
-                amount,
-                date: new Date().toISOString()
-            }];
-
-            try {
-                await updateDoc(doc(db, 'savings_plans', planId), { deposits });
-                input.value = '';
-            } catch (err) {
-                alert('Error al guardar abono: ' + err.message);
-            }
-        };
-
-        window.deletePlan = async (planId) => {
-            if (confirm('¿Estás seguro de que quieres eliminar esta meta de ahorro? Esta acción no se puede deshacer.')) {
-                const key = prompt('Introduce la clave maestra para eliminar:');
-                if (key === '2026') {
-                    try {
-                        await deleteDoc(doc(db, 'savings_plans', planId));
-                        window.showView('list');
-                    } catch (err) {
-                        alert('Error al eliminar: ' + err.message);
-                    }
-                } else {
-                    alert('Clave incorrecta');
-                }
-            }
-        };
-
-        initApp();
-    </script>
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+}
+</script>
 </body>
 </html>

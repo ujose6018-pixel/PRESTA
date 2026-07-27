@@ -2,95 +2,101 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PrestaControl - Menú Principal</title>
-    
-    <!-- PWA Meta Tags -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>PrestaControl</title>
+
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#15803d">
+    <meta name="theme-color" content="#F6F5F2">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="PrestaControl">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2489/2489756.png">
 
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="theme.css">
     <style>
-        .fade-in { animation: fadeIn 0.5s ease-out; }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .menu-card:hover {
-            transform: translateY(-5px);
-            transition: all 0.3s ease;
-        }
+        .mod { display: flex; align-items: center; gap: 14px; padding: 16px; border-bottom: 1px solid var(--rule); text-decoration: none; color: inherit; transition: background .13s ease; }
+        .mod:last-child { border-bottom: 0; }
+        .mod:hover { background: var(--sunk); }
+        .mod:hover .arrow { transform: translateX(3px); color: var(--ink-2); }
+        .arrow { color: var(--ink-3); transition: transform .15s ease, color .15s ease; flex: none; }
+        .ico { width: 38px; height: 38px; border-radius: 8px; display: grid; place-items: center; flex: none; border: 1px solid var(--rule); background: var(--sunk); }
     </style>
 </head>
-<body class="bg-slate-100 text-slate-800 font-sans min-h-screen flex items-center justify-center p-4">
+<body class="min-h-screen">
 
-    <div class="max-w-4xl w-full fade-in">
-        <header class="text-center mb-12">
-            <div class="inline-flex items-center justify-center w-20 h-20 bg-green-700 text-white rounded-2xl shadow-lg mb-4">
-                <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
+<div class="max-w-lg mx-auto px-5 py-10 sm:py-16">
+
+    <header class="flex items-start justify-between gap-4 mb-8">
+        <div class="flex items-center gap-3">
+            <span class="mono-tile" style="background: var(--brand); color: var(--brand-ink); width: 38px; height: 38px; font-size: 14px;">PC</span>
+            <div>
+                <h1 class="text-[19px] font-semibold leading-tight">PrestaControl</h1>
+                <p class="text-[12.5px]" style="color: var(--ink-3);">Control financiero personal · Lempiras</p>
             </div>
-            <h1 class="text-4xl font-black text-slate-900 tracking-tight">PrestaControl</h1>
-            <p class="text-slate-500 mt-2 text-lg">Selecciona una herramienta para comenzar</p>
-        </header>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <!-- Gestión de Préstamos -->
-            <a href="presta.html" class="menu-card bg-white p-8 rounded-3xl shadow-sm border border-slate-200 hover:shadow-xl hover:border-green-300 transition-all group">
-                <div class="flex items-center justify-between mb-6">
-                    <div class="p-4 bg-green-50 text-green-700 rounded-2xl group-hover:bg-green-700 group-hover:text-white transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                    </div>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-300 group-hover:text-green-500 transform group-hover:translate-x-1 transition-all"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-                </div>
-                <h2 class="text-2xl font-bold text-slate-800 mb-2">Gestión de Préstamos</h2>
-                <p class="text-slate-500 leading-relaxed">Controla tus préstamos, calcula réditos, gestiona abonos a capital y calendarios de cobro quincenales/semanales.</p>
-            </a>
-
-            <!-- Ronda de Ahorro -->
-            <a href="ronda.html" class="menu-card bg-white p-8 rounded-3xl shadow-sm border border-slate-200 hover:shadow-xl hover:border-blue-300 transition-all group">
-                <div class="flex items-center justify-between mb-6">
-                    <div class="p-4 bg-blue-50 text-blue-700 rounded-2xl group-hover:bg-blue-700 group-hover:text-white transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                    </div>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-300 group-hover:text-blue-500 transform group-hover:translate-x-1 transition-all"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-                </div>
-                <h2 class="text-2xl font-bold text-slate-800 mb-2">Ronda de Ahorro</h2>
-                <p class="text-slate-500 leading-relaxed">Organiza tus ahorros grupales o personales. Define montos semanales, fecha de inicio y controla quién ha pagado cada semana.</p>
-            </a>
-
-            <!-- Ahorro Personal -->
-            <a href="ahorro.html" class="menu-card bg-white p-8 rounded-3xl shadow-sm border border-slate-200 hover:shadow-xl hover:border-amber-300 transition-all group">
-                <div class="flex items-center justify-between mb-6">
-                    <div class="p-4 bg-amber-50 text-amber-700 rounded-2xl group-hover:bg-amber-700 group-hover:text-white transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 5c-1.5 0-2.8 1.4-3 2-0.2-0.6-1.5-2-3-2V5c1.5 0 2.8 1.4 3 2 0.2-0.6 1.5-2 3-2V5z"/><path d="M7 19c-1.5 0-2.8-1.4-3-2 0.2 0.6 1.5 2 3 2v2c-1.5 0-2.8-1.4-3-2 0.2 0.6 1.5 2 3 2v-2z"/><path d="M12 12c-2 0-3 1-3 3s1 3 3 3 3-1 3-3-1-3-3-3z"/><path d="M19 12c-2 0-3 1-3 3s1 3 3 3 3-1 3-3-1-3-3-3z"/><path d="M5 12c-2 0-3 1-3 3s1 3 3 3 3-1 3-3-1-3-3-3z"/></svg>
-                    </div>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-300 group-hover:text-amber-500 transform group-hover:translate-x-1 transition-all"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-                </div>
-                <h2 class="text-2xl font-bold text-slate-800 mb-2">Ahorro Personal</h2>
-                <p class="text-slate-500 leading-relaxed">Gestiona tus metas de ahorro. Desafíos por números, metas por fecha y seguimiento de progreso diario.</p>
-            </a>
         </div>
+        <button id="theme-btn" class="btn btn-quiet btn-sm" aria-label="Cambiar tema">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z"/></svg>
+        </button>
+    </header>
 
-        <footer class="mt-16 text-center text-slate-400 text-sm">
-            <p>&copy; 2026 PrestaControl - Sistema Profesional de Gestión Financiera</p>
-        </footer>
+    <p class="tag mb-2.5">Módulos</p>
+
+    <div class="panel">
+        <a href="ahorro.html" class="mod">
+            <span class="ico">
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--ink-2)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h3"/></svg>
+            </span>
+            <span class="flex-1 min-w-0">
+                <span class="block text-[15px] font-semibold">Ahorros y fondos</span>
+                <span class="block text-[12.5px] mt-0.5" style="color: var(--ink-3);">Saldos por fondo, estado de cuenta y metas</span>
+            </span>
+            <svg class="arrow" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M12 6l6 6-6 6"/></svg>
+        </a>
+
+        <a href="presta.html" class="mod">
+            <span class="ico">
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--ink-2)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5v19"/><path d="M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            </span>
+            <span class="flex-1 min-w-0">
+                <span class="block text-[15px] font-semibold">Préstamos</span>
+                <span class="block text-[12.5px] mt-0.5" style="color: var(--ink-3);">Réditos, abonos a capital y calendario de cobro</span>
+            </span>
+            <svg class="arrow" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M12 6l6 6-6 6"/></svg>
+        </a>
+
+        <a href="ronda.html" class="mod">
+            <span class="ico">
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--ink-2)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7.5" r="3"/><path d="M3 20v-1.5A4.5 4.5 0 0 1 7.5 14h3a4.5 4.5 0 0 1 4.5 4.5V20"/><path d="M16.5 4.6a3 3 0 0 1 0 5.8M21 20v-1.5a4.5 4.5 0 0 0-3-4.2"/></svg>
+            </span>
+            <span class="flex-1 min-w-0">
+                <span class="block text-[15px] font-semibold">Rondas de ahorro</span>
+                <span class="block text-[12.5px] mt-0.5" style="color: var(--ink-3);">Control semanal de quién pagó y a quién le toca</span>
+            </span>
+            <svg class="arrow" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M12 6l6 6-6 6"/></svg>
+        </a>
     </div>
 
-    <!-- Registro de Service Worker para PWA -->
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
-                    .then(reg => console.log('SW registrado'))
-                    .catch(err => console.log('SW error', err));
-            });
-        }
-    </script>
+    <footer class="mt-8 pt-5" style="border-top: 1px solid var(--rule);">
+        <p class="text-[12px]" style="color: var(--ink-3);">Los datos se sincronizan entre todos tus dispositivos y siguen disponibles sin conexión.</p>
+    </footer>
+</div>
+
+<script>
+    (function () {
+        const saved = localStorage.getItem('pc-theme');
+        const dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+        document.getElementById('theme-btn').addEventListener('click', () => {
+            const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+            document.documentElement.dataset.theme = next;
+            localStorage.setItem('pc-theme', next);
+            document.querySelector('meta[name="theme-color"]').setAttribute('content', next === 'dark' ? '#101216' : '#F6F5F2');
+        });
+    })();
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+    }
+</script>
 </body>
 </html>

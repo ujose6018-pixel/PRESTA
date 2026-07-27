@@ -1,11 +1,11 @@
 {
-  "name": "PrestaControl - Gestión de Préstamos",
+  "name": "PrestaControl",
   "short_name": "PrestaControl",
-  "description": "Aplicación para gestionar préstamos y cobros de forma sencilla.",
+  "description": "Ahorros, fondos, préstamos y rondas en Lempiras.",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#15803d",
-  "theme_color": "#15803d",
+  "background_color": "#F6F5F2",
+  "theme_color": "#F6F5F2",
   "orientation": "portrait",
   "icons": [
     {
