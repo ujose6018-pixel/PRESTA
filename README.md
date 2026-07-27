@@ -19,6 +19,24 @@ con datos en Firebase Firestore y funcionamiento sin conexión.
 - `manifest.json` — configuración de instalación de la PWA.
 - `firestore.rules` — reglas de seguridad de la base de datos.
 
+## Interfaz
+
+Patrón de banca móvil: barra de marca, saludo según la hora, tarjetas agrupadas con filas
+y saldo a la derecha, y botón central flotante para registrar un movimiento.
+
+El color de toda la plataforma sale de la variable `--brand` en `theme.css`. Cambiándola ahí,
+cambian las cuatro páginas. Hay alternativas sugeridas en un comentario junto a la definición.
+
+El saludo usa el nombre guardado en **Más → Tu nombre** (queda en el dispositivo, no en la nube).
+
+## Logros
+
+14 logros que se calculan en el momento a partir de los movimientos: no hay campos nuevos en
+Firestore ni nada que mantener sincronizado. Las fechas de desbloqueo se guardan en el navegador.
+
+Cubren cuatro ejes: constancia de registro, montos acumulados, meses cerrados en verde y metas
+cumplidas. La campana marca los que aún no has visto.
+
 ## Fondos
 
 Un fondo es una bolsa de dinero con saldo propio. Cada movimiento guarda tipo (entrada o salida),

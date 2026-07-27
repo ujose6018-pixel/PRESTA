@@ -112,14 +112,14 @@ body.bg-slate-100                        { background: var(--paper) !important; 
 
 /* Barra superior de cada módulo */
 nav.bg-green-700, nav.bg-blue-700, nav.bg-amber-700, nav.bg-emerald-700 {
-  background: var(--sheet) !important;
-  color: var(--ink) !important;
-  border-bottom: 1px solid var(--rule);
+  background: var(--brand) !important;
+  color: var(--brand-ink) !important;
+  border-bottom: 0;
   box-shadow: none !important;
 }
-nav.bg-green-700 a, nav.bg-blue-700 a, nav.bg-amber-700 a { color: var(--ink-2) !important; }
-nav.bg-green-700 h1, nav.bg-blue-700 h1, nav.bg-amber-700 h1 { color: var(--ink) !important; }
-nav .text-white\/80 { color: var(--ink-3) !important; }
+nav.bg-green-700 a, nav.bg-blue-700 a, nav.bg-amber-700 a,
+nav.bg-green-700 h1, nav.bg-blue-700 h1, nav.bg-amber-700 h1 { color: var(--brand-ink) !important; }
+nav .text-white\/80 { color: var(--brand-ink) !important; opacity: .85; }
 
 /* Un solo acento para toda la plataforma */
 .bg-green-600, .bg-green-700, .bg-blue-600, .bg-blue-700,
@@ -269,3 +269,93 @@ thead th { color: var(--ink-3) !important; font-weight: 600; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* ============================================================
+   Patrón de banca móvil
+   Para cambiar el color de toda la plataforma, edita --brand
+   arriba. Alternativas: #1F3A5F azul · #0F5C4A verde · #8C1D2C
+   vinotinto · #1B4A7A celeste oscuro.
+   ============================================================ */
+.appbar {
+  position: sticky; top: 0; z-index: 30;
+  background: var(--brand); color: var(--brand-ink);
+  padding-top: env(safe-area-inset-top);
+}
+.appbar-in { height: 52px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.appbar button, .appbar a { color: var(--brand-ink); }
+.appbar-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 10px; border-radius: 6px; border: 0; background: transparent;
+  color: var(--brand-ink); font-family: var(--f-body); font-size: 13.5px; font-weight: 600; cursor: pointer;
+}
+.appbar-btn:hover { background: rgba(255,255,255,.14); }
+[data-theme="dark"] .appbar-btn:hover { background: rgba(0,0,0,.2); }
+
+.greet { background: var(--sheet); border-bottom: 1px solid var(--rule); }
+.greet-in { display: flex; align-items: center; gap: 12px; padding: 13px 0; }
+.greet-ico { width: 34px; height: 34px; flex: none; }
+
+.bell { position: relative; border: 0; background: transparent; cursor: pointer; padding: 6px; border-radius: 8px; color: var(--ink-2); }
+.bell:hover { background: var(--sunk); }
+.bell-dot {
+  position: absolute; top: 0; right: 0; min-width: 17px; height: 17px; padding: 0 4px;
+  border-radius: 9px; background: var(--neg); color: #fff;
+  font-family: var(--f-mono); font-size: 10px; font-weight: 600;
+  display: grid; place-items: center; border: 2px solid var(--sheet);
+}
+
+/* Tarjeta de grupo */
+.gcard { background: var(--sheet); border-radius: 12px; box-shadow: 0 1px 3px rgba(21,23,28,.08); overflow: hidden; }
+[data-theme="dark"] .gcard { border: 1px solid var(--rule); box-shadow: none; }
+.gcard-head { display: flex; align-items: center; gap: 13px; padding: 16px; }
+.gcard-ico { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--brand-soft); }
+.grow {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px; border-top: 1px solid var(--rule);
+  cursor: pointer; text-align: left; width: 100%; background: none; border-left: 0; border-right: 0; border-bottom: 0;
+  transition: background .13s ease;
+}
+.grow:hover { background: var(--sunk); }
+.grow-chev { color: var(--brand); flex: none; }
+.gfoot { padding: 12px 16px; border-top: 1px solid var(--rule); background: var(--sunk); }
+
+/* Navegación inferior con botón central */
+.bnav {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;
+  display: grid; grid-template-columns: repeat(5, 1fr);
+  background: var(--sheet); border-top: 1px solid var(--rule);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.bnav .tab {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  padding: 9px 2px 10px; border: 0; background: none; cursor: pointer;
+  color: var(--ink-3); font-family: var(--f-body); font-size: 10.5px; font-weight: 600; line-height: 1.2;
+}
+.bnav .tab[aria-current="true"] { color: var(--brand); }
+.bnav .slot { position: relative; }
+.fab {
+  position: absolute; left: 50%; top: -22px; transform: translateX(-50%);
+  width: 54px; height: 54px; border-radius: 50%; border: 4px solid var(--paper);
+  background: var(--brand); color: var(--brand-ink);
+  display: grid; place-items: center; cursor: pointer;
+  box-shadow: 0 4px 14px -3px rgba(21,23,28,.4);
+  transition: transform .14s ease;
+}
+.fab:active { transform: translateX(-50%) scale(.94); }
+
+.sitefoot { text-align: center; padding: 22px 16px 8px; }
+.sitefoot p { font-size: 11.5px; color: var(--ink-3); line-height: 1.7; }
+
+/* Logros */
+.medal { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; flex: none; }
+.medal-on  { background: var(--brand); color: var(--brand-ink); }
+.medal-off { background: var(--sunk); color: var(--ink-3); border: 1px dashed var(--rule-2); }
+.ach { display: flex; gap: 13px; padding: 14px 16px; border-top: 1px solid var(--rule); align-items: center; }
+.ach:first-child { border-top: 0; }
+.ach-locked .ach-name { color: var(--ink-2); }
+.streak { display: flex; gap: 4px; }
+.streak i { width: 100%; height: 6px; border-radius: 3px; background: var(--rule); display: block; }
+.streak i.on { background: var(--pos); }
+
+.gcard .grow:first-child { border-top: 0; }
+.gcard .gcard-head + .grow { border-top: 1px solid var(--rule); }
