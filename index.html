@@ -6,7 +6,7 @@
     <title>PrestaControl</title>
 
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#F6F5F2">
+    <meta name="theme-color" content="#C41E30">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="PrestaControl">
@@ -19,15 +19,18 @@
         .mod:last-child { border-bottom: 0; }
         .mod:hover { background: var(--sunk); }
         .mod:hover .arrow { transform: translateX(3px); color: var(--ink-2); }
-        .arrow { color: var(--ink-3); transition: transform .15s ease, color .15s ease; flex: none; }
-        .ico { width: 38px; height: 38px; border-radius: 8px; display: grid; place-items: center; flex: none; border: 1px solid var(--rule); background: var(--sunk); }
+        .arrow { color: var(--brand-text); transition: transform .15s ease, color .15s ease; flex: none; }
+        .ico { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--brand-soft); }
     </style>
 </head>
 <body class="min-h-screen">
 
 <header class="appbar">
     <div class="max-w-lg mx-auto px-4 appbar-in">
-        <span class="font-semibold text-[15px]" style="font-family: var(--f-display);">PrestaControl</span>
+        <span class="flex items-center gap-2.5">
+            <span class="mono-tile" style="background: rgba(255,255,255,.16); color: var(--brand-ink); width: 30px; height: 30px; font-size: 11.5px;">PC</span>
+            <span class="font-semibold text-[15.5px]" style="font-family: var(--f-display); letter-spacing: -.01em;">PrestaControl</span>
+        </span>
         <button id="theme-btn" class="appbar-btn" aria-label="Cambiar tema">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z"/></svg>
         </button>
@@ -46,12 +49,12 @@
 
 <div class="max-w-lg mx-auto px-4 py-5">
 
-    <p class="tag mb-2.5">Módulos</p>
+    <p class="sec-title">Mis productos</p>
 
     <div class="gcard">
         <a href="ahorro.html" class="mod">
             <span class="ico">
-                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--ink-2)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h3"/></svg>
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--brand-text)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h3"/></svg>
             </span>
             <span class="flex-1 min-w-0">
                 <span class="block text-[15px] font-semibold">Ahorros y fondos</span>
@@ -62,7 +65,7 @@
 
         <a href="presta.html" class="mod">
             <span class="ico">
-                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--ink-2)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5v19"/><path d="M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--brand-text)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5v19"/><path d="M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
             </span>
             <span class="flex-1 min-w-0">
                 <span class="block text-[15px] font-semibold">Préstamos</span>
@@ -73,7 +76,7 @@
 
         <a href="ronda.html" class="mod">
             <span class="ico">
-                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--ink-2)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7.5" r="3"/><path d="M3 20v-1.5A4.5 4.5 0 0 1 7.5 14h3a4.5 4.5 0 0 1 4.5 4.5V20"/><path d="M16.5 4.6a3 3 0 0 1 0 5.8M21 20v-1.5a4.5 4.5 0 0 0-3-4.2"/></svg>
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--brand-text)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7.5" r="3"/><path d="M3 20v-1.5A4.5 4.5 0 0 1 7.5 14h3a4.5 4.5 0 0 1 4.5 4.5V20"/><path d="M16.5 4.6a3 3 0 0 1 0 5.8M21 20v-1.5a4.5 4.5 0 0 0-3-4.2"/></svg>
             </span>
             <span class="flex-1 min-w-0">
                 <span class="block text-[15px] font-semibold">Rondas de ahorro</span>
@@ -106,7 +109,7 @@
             const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
             document.documentElement.dataset.theme = next;
             localStorage.setItem('pc-theme', next);
-            document.querySelector('meta[name="theme-color"]').setAttribute('content', next === 'dark' ? '#101216' : '#F6F5F2');
+            document.querySelector('meta[name="theme-color"]').setAttribute('content', next === 'dark' ? '#7E1520' : '#C41E30');
         });
     })();
     if ('serviceWorker' in navigator) {

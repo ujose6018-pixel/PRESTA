@@ -24,8 +24,17 @@ con datos en Firebase Firestore y funcionamiento sin conexión.
 Patrón de banca móvil: barra de marca, saludo según la hora, tarjetas agrupadas con filas
 y saldo a la derecha, y botón central flotante para registrar un movimiento.
 
-El color de toda la plataforma sale de la variable `--brand` en `theme.css`. Cambiándola ahí,
-cambian las cuatro páginas. Hay alternativas sugeridas en un comentario junto a la definición.
+El color de toda la plataforma sale de dos variables en `theme.css`:
+
+- `--brand` — barra superior, botones principales
+- `--brand-text` — acentos sobre fondo claro (flechas, enlaces, barras de progreso)
+- `--accent` — botón circular central
+
+Están definidas dos veces: en `:root` para el tema claro y en `[data-theme="dark"]` para el oscuro.
+Cambiando esas seis líneas cambia toda la plataforma.
+
+La marca es propia a propósito. Reproducir el logo, el nombre o la identidad completa de un banco
+en una aplicación que maneja dinero es un problema legal y de confusión, aunque sea de uso personal.
 
 El saludo usa el nombre guardado en **Más → Tu nombre** (queda en el dispositivo, no en la nube).
 
