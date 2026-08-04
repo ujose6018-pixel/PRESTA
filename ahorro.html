@@ -79,6 +79,33 @@
     <p class="tag" id="boot-text">Cargando</p>
 </div>
 
+
+<!-- Red de seguridad: script clásico, corre aunque el módulo falle al cargar. -->
+<script>
+(function () {
+    var mostrado = false;
+    function caer(detalle) {
+        if (mostrado) return;
+        var b = document.getElementById('boot');
+        if (!b || b.classList.contains('hidden')) return;
+        mostrado = true;
+        b.innerHTML =
+            '<div style="max-width:340px;padding:24px;text-align:center">' +
+            '<p style="font-size:17px;font-weight:600;margin-bottom:8px">No se pudo cargar la página</p>' +
+            '<p style="font-size:13.5px;line-height:1.6;color:#878D98;margin-bottom:18px">' +
+            'Revisá tu conexión y volvé a intentar. Si sigue igual, cerrá la aplicación y abrila de nuevo.</p>' +
+            '<button onclick="location.reload()" style="padding:10px 20px;border-radius:7px;border:0;' +
+            'background:#C41E30;color:#fff;font-weight:600;font-size:14px;cursor:pointer">Reintentar</button>' +
+            '<p style="font-size:11px;color:#878D98;margin-top:16px;word-break:break-word;font-family:monospace">' +
+            String(detalle || '').slice(0, 160) + '</p></div>';
+    }
+    window.addEventListener('error', function (e) {
+        caer(e.message || (e.target && e.target.src) || 'error');
+    }, true);
+    window.addEventListener('unhandledrejection', function (e) { caer(e.reason); });
+    setTimeout(function () { caer('La carga tardó demasiado'); }, 15000);
+})();
+</script>
 <div id="app" class="hidden">
 
     <header class="appbar">
@@ -157,29 +184,15 @@
 <div id="notices" class="notices"></div>
 
 <script type="module">
-import { LUGARES, lugarDe } from './core.js';
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc, query,
-         enableIndexedDbPersistence, arrayUnion, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+/* Firebase, utilidades y constantes salen de core.js.
+   Esta página NO debe inicializar Firebase por su cuenta: hacerlo dos veces
+   rompe la persistencia y deja la pantalla de carga colgada. */
+import { db, auth, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc, query,
+         arrayUnion, writeBatch, signInAnonymously, onAuthStateChanged,
+         COL, MASTER_KEY, LUGARES, lugarDe } from './core.js';
 
-const firebaseConfig = {
-    apiKey: "AIzaSyAnLru6yhw9huXN25LV4kGmCfXL843o4TA",
-    authDomain: "presta-57302.firebaseapp.com",
-    projectId: "presta-57302",
-    storageBucket: "presta-57302.firebasestorage.app",
-    messagingSenderId: "636802344217",
-    appId: "1:636802344217:web:46fa0418609d69eb841188"
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-enableIndexedDbPersistence(db).catch(() => {});
-
-const FUNDS = 'savings_funds';
-const PLANS = 'savings_plans';
-const MASTER_KEY = '2026';
+const FUNDS = COL.fondos;
+const PLANS = COL.metas;
 
 let funds = [], plans = [];
 let route = { view: 'home', id: null };

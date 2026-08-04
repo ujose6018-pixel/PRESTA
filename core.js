@@ -10,6 +10,7 @@ import { getFirestore, collection, doc, addDoc, setDoc, getDoc, onSnapshot, upda
        from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 export { collection, doc, addDoc, setDoc, getDoc, onSnapshot, updateDoc, deleteDoc, query, arrayUnion, writeBatch };
+export { signInAnonymously, onAuthStateChanged };
 
 const firebaseConfig = {
     apiKey: "AIzaSyAnLru6yhw9huXN25LV4kGmCfXL843o4TA",
@@ -23,7 +24,8 @@ const firebaseConfig = {
 const fbApp = initializeApp(firebaseConfig);
 export const auth = getAuth(fbApp);
 export const db = getFirestore(fbApp);
-enableIndexedDbPersistence(db).catch(() => {});
+/* Puede lanzar de forma síncrona si Firestore ya arrancó, por eso el try. */
+try { enableIndexedDbPersistence(db).catch(() => {}); } catch { /* ya estaba activa */ }
 
 export const COL = {
     fondos:      'savings_funds',

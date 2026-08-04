@@ -37,6 +37,19 @@ demasiado en físico: más del 60% del ahorro en efectivo, con más de L 3,000, 
 recomendación. Los cuatro lugares cuentan igual para el colchón de emergencia — todos son
 dinero disponible; la diferencia es el riesgo de pérdida o robo, no la liquidez.
 
+## Regla importante
+
+Ninguna página que importe `core.js` debe inicializar Firebase por su cuenta. `core.js` ya llama a
+`initializeApp`, `getFirestore` y `enableIndexedDbPersistence`. Hacerlo dos veces lanza un error
+**síncrono** (`Firestore ya arrancó`) que mata el módulo antes de que registre nada, y la pantalla
+de carga se queda colgada para siempre.
+
+Las páginas nuevas importan todo de `core.js`. `presta.html` y `ronda.html` son las únicas con su
+propia inicialización, y por eso **no** deben importar `core.js`.
+
+Todas las páginas con módulo llevan un script clásico de respaldo: si el módulo falla o la carga
+pasa de 15 segundos, muestra un mensaje con botón de reintentar en vez de dejar el esqueleto girando.
+
 ## Archivos compartidos
 
 - `core.js` — Firebase, formato de moneda y fechas, diálogos, avisos, tema, efectos. **Todas las páginas dependen de esto.**

@@ -22,6 +22,33 @@
 <div id="boot" class="fixed inset-0 grid place-items-center" style="background:var(--paper);z-index:90">
     <div class="wrap w-full" style="max-width:420px">
         <div class="skel h-4 w-32 mb-4"></div><div class="skel h-24 w-full mb-3"></div><div class="skel h-16 w-full"></div>
+
+<!-- Red de seguridad: script clásico, corre aunque el módulo falle al cargar. -->
+<script>
+(function () {
+    var mostrado = false;
+    function caer(detalle) {
+        if (mostrado) return;
+        var b = document.getElementById('boot');
+        if (!b || b.classList.contains('hidden')) return;
+        mostrado = true;
+        b.innerHTML =
+            '<div style="max-width:340px;padding:24px;text-align:center">' +
+            '<p style="font-size:17px;font-weight:600;margin-bottom:8px">No se pudo cargar la página</p>' +
+            '<p style="font-size:13.5px;line-height:1.6;color:#878D98;margin-bottom:18px">' +
+            'Revisá tu conexión y volvé a intentar. Si sigue igual, cerrá la aplicación y abrila de nuevo.</p>' +
+            '<button onclick="location.reload()" style="padding:10px 20px;border-radius:7px;border:0;' +
+            'background:#C41E30;color:#fff;font-weight:600;font-size:14px;cursor:pointer">Reintentar</button>' +
+            '<p style="font-size:11px;color:#878D98;margin-top:16px;word-break:break-word;font-family:monospace">' +
+            String(detalle || '').slice(0, 160) + '</p></div>';
+    }
+    window.addEventListener('error', function (e) {
+        caer(e.message || (e.target && e.target.src) || 'error');
+    }, true);
+    window.addEventListener('unhandledrejection', function (e) { caer(e.reason); });
+    setTimeout(function () { caer('La carga tardó demasiado'); }, 15000);
+})();
+</script>
     </div>
 </div>
 
