@@ -1,65 +1,66 @@
-# PrestaControl
+# Mis Finanzas
 
-Control financiero personal en Lempiras. Aplicación web instalable (PWA) alojada en GitHub Pages,
-con datos en Firebase Firestore y funcionamiento sin conexión.
+Control financiero personal en Lempiras. Aplicación web instalable (PWA) sobre GitHub Pages,
+con datos en Firebase Firestore y funcionamiento sin conexión. Sin paso de compilación.
 
-## Módulos
+## Páginas
 
-| Archivo | Módulo | Colección en Firestore |
+| Archivo | Módulo | Colección |
 |---|---|---|
-| `index.html` | Menú principal | — |
-| `ahorro.html` | Ahorros: fondos y metas | `savings_funds`, `savings_plans` |
-| `presta.html` | Préstamos | `loans` |
+| `index.html` | Panel de control | — |
+| `ahorro.html` | Fondos, metas y logros | `savings_funds`, `savings_plans` |
+| `fiado.html` | Crédito en pulpería | `credit_accounts` |
+| `financiacion.html` | Artículos en cuotas | `financed_items` |
+| `presupuesto.html` | Ingresos, gastos y situación laboral | `budget_profile/main` |
+| `analisis.html` | Evaluación financiera | lee todas |
+| `presta.html` | Préstamos otorgados | `loans` |
 | `ronda.html` | Rondas de ahorro | `savings_rounds` |
 
-## Archivos de apoyo
+## Archivos compartidos
 
-- `theme.css` — hoja de estilo compartida. **Obligatoria en las cuatro páginas**; sin ella el sitio se ve sin formato.
-- `sw.js` — service worker (caché para uso sin conexión). Al publicar cambios grandes, sube el número de `CACHE_NAME`.
-- `manifest.json` — configuración de instalación de la PWA.
-- `firestore.rules` — reglas de seguridad de la base de datos.
+- `core.js` — Firebase, formato de moneda y fechas, diálogos, avisos, tema, efectos. **Todas las páginas dependen de esto.**
+- `analisis.js` — motor de puntuación financiera.
+- `theme.css` — sistema de diseño. Sin él, el sitio se ve sin formato.
+- `sw.js` — caché para uso sin conexión. Al publicar cambios, sube el número en `CACHE_NAME`.
 
-## Interfaz
+## Cómo funcionan los módulos nuevos
 
-Patrón de banca móvil: barra de marca, saludo según la hora, tarjetas agrupadas con filas
-y saldo a la derecha, y botón central flotante para registrar un movimiento.
+**Fiado.** Cada pulpería es una cuenta con una lista de movimientos. Los cargos suman, los abonos
+restan, y el total se recalcula siempre desde la lista — nunca se guarda un saldo. Eso significa que
+corregir o borrar un movimiento deja las cuentas cuadradas solas. "Cancelar todo" registra un abono
+por el saldo exacto y conserva el historial.
 
-El color de toda la plataforma sale de dos variables en `theme.css`:
+**Financiación.** Guardas el total, el número de cuotas, el día de pago y la fecha de la primera.
+Las fechas de las demás se calculan: si el día de pago es 31 y el mes tiene 30, cae el último día del
+mes. La alerta aparece 5 días antes (`AVISO_DIAS` en el archivo) y el aviso al abrir la aplicación
+sale una vez al día por cuota.
 
-- `--brand` — barra superior, botones principales
-- `--brand-text` — acentos sobre fondo claro (flechas, enlaces, barras de progreso)
+**Presupuesto.** Todo se normaliza a monto mensual: quincenal ×2, semanal ×4.33, anual ÷12. La
+situación laboral cambia el estándar del análisis — con ingresos variables se exigen 6 meses de
+colchón en vez de 3.
+
+## Análisis financiero
+
+Se calcula en el teléfono, sin internet y sin costo. Puntúa 0–100 combinando cinco áreas:
+colchón de emergencia (25%), nivel de deuda (25%), puntualidad en pagos (20%), capacidad de
+ahorro (20%) y constancia en el registro (10%).
+
+**Capa de IA opcional.** Con una llave de Gemini se genera además una lectura escrita. La llave se
+guarda en `localStorage`, nunca en el repositorio. Solo se envían totales redondeados: ningún nombre
+de fondo o pulpería, ninguna fecha, ningún movimiento individual. En el plan gratuito de Google los
+datos enviados pueden usarse para entrenar sus modelos; por eso el resumen va anonimizado y el
+análisis principal no depende de la IA.
+
+## Colores
+
+Tres variables en `theme.css`, definidas dos veces (`:root` para claro, `[data-theme="dark"]` para oscuro):
+
+- `--brand` — barra superior y botones principales
+- `--brand-text` — acentos sobre fondo claro
 - `--accent` — botón circular central
-
-Están definidas dos veces: en `:root` para el tema claro y en `[data-theme="dark"]` para el oscuro.
-Cambiando esas seis líneas cambia toda la plataforma.
-
-La marca es propia a propósito. Reproducir el logo, el nombre o la identidad completa de un banco
-en una aplicación que maneja dinero es un problema legal y de confusión, aunque sea de uso personal.
-
-El saludo usa el nombre guardado en **Más → Tu nombre** (queda en el dispositivo, no en la nube).
-
-## Logros
-
-14 logros que se calculan en el momento a partir de los movimientos: no hay campos nuevos en
-Firestore ni nada que mantener sincronizado. Las fechas de desbloqueo se guardan en el navegador.
-
-Cubren cuatro ejes: constancia de registro, montos acumulados, meses cerrados en verde y metas
-cumplidas. La campana marca los que aún no has visto.
-
-## Fondos
-
-Un fondo es una bolsa de dinero con saldo propio. Cada movimiento guarda tipo (entrada o salida),
-monto, categoría, concepto y fecha; el saldo nunca se almacena, siempre se recalcula sumando los
-movimientos, así que corregir o borrar uno deja las cuentas cuadradas.
-
-Los traspasos entre fondos se escriben con `writeBatch`: o entran las dos partes o no entra ninguna.
-
-## Publicar
-
-Sube los archivos a la raíz del repositorio. GitHub Pages los sirve directamente; no hay
-paso de compilación ni dependencias que instalar.
 
 ## Pendiente
 
-Las reglas de Firestore permiten lectura y escritura sin autenticación hasta 2035. Antes de usar
-esto con cantidades reales conviene migrar a login con correo y contraseña y atar las reglas al UID.
+Las reglas de Firestore permiten lectura y escritura sin autenticación hasta 2035. Ahora que hay
+más datos personales — ingresos, gastos, deudas — conviene migrar a login con correo y contraseña
+y atar las reglas al UID.

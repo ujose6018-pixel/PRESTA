@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Financiación · Mis Finanzas</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#C41E30">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Financiación">
+<link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2489/2489756.png">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="theme.css">
+<script>(function(){var s=localStorage.getItem("mf-theme");document.documentElement.dataset.theme=s?s:(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");})();</script>
+<style>
+    body { padding-bottom: 26px; background: var(--paper); }
+    .alerta { border-left: 3px solid var(--neg); }
+    .alerta-soon { border-left: 3px solid #C99A3B; }
+</style>
+</head>
+<body>
+
+<div id="boot" class="fixed inset-0 grid place-items-center" style="background:var(--paper);z-index:90">
+    <div class="wrap w-full" style="max-width:420px">
+        <div class="skel h-4 w-32 mb-4"></div><div class="skel h-24 w-full mb-3"></div><div class="skel h-16 w-full"></div>
+    </div>
+</div>
+
+<div id="app" class="hidden">
+    <div id="shell"></div>
+    <div class="greet">
+        <div class="wrap greet-in">
+            <span class="greet-ico" id="greet-ico"></span>
+            <div class="flex-1 min-w-0">
+                <p class="text-[16px] font-semibold truncate" id="greet-text">Hola</p>
+                <p class="text-[12px]" style="color:var(--ink-3)">Artículos financiados y sus cuotas</p>
+            </div>
+        </div>
+    </div>
+    <main class="wrap py-5">
+        <section id="v-list"></section>
+        <section id="v-detail" class="hidden"></section>
+    </main>
+</div>
+
+<script type="module">
+import { db, COL, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc, query,
+         $, esc, uid, money, money0, monogram, tint, flong, fmid, todayStr, isoToDate, dateToISO,
+         cuotaDue, diasEntre, MESES, notice, openDialog, closeDialog, askConfirm, num, dialogFooter,
+         bootShell, shellHeader, saludo, swapView, countUp, leer, guardar } from './core.js';
+
+let items = [], route = { view: 'list', id: null };
+const AVISO_DIAS = 5;   // cuántos días antes empieza el recordatorio
+
+/* ---------------- Cálculos ---------------- */
+const pagadas   = (it) => Array.isArray(it?.paid) ? it.paid : [];
+const estaPagada = (it, n) => pagadas(it).some(p => Number(p.n) === n);
+const nCuotas   = (it) => Number(it.installments) || 1;
+const montoCuota = (it) => Number(it.installmentAmount) || (Number(it.total) || 0) / nCuotas(it);
+const pagado    = (it) => pagadas(it).reduce((a, p) => a + Number(p.amount || montoCuota(it)), 0);
+const restante  = (it) => Math.max(0, (Number(it.total) || 0) - pagado(it));
+const terminado = (it) => pagadas(it).length >= nCuotas(it);
+
+/** Próxima cuota sin pagar, con su estado. */
+function proxima(it) {
+    for (let n = 1; n <= nCuotas(it); n++) {
+        if (estaPagada(it, n)) continue;
+        const due = cuotaDue(it, n);
+        const dias = diasEntre(new Date(), due);
+        return { n, due, dias, estado: dias < 0 ? 'late' : dias <= AVISO_DIAS ? 'soon' : 'ok' };
+    }
+    return null;
+}
+function estadoCuota(it, n) {
+    if (estaPagada(it, n)) return 'paid';
+    const dias = diasEntre(new Date(), cuotaDue(it, n));
+    return dias < 0 ? 'late' : dias <= AVISO_DIAS ? 'soon' : 'pend';
+}
+const activos = () => items.filter(i => !terminado(i));
+const deudaTotal = () => activos().reduce((a, i) => a + restante(i), 0);
+const cuotaMensual = () => activos().reduce((a, i) => a + montoCuota(i), 0);
+
+/** Cuotas vencidas o por vencer, ordenadas por urgencia. */
+function alertas() {
+    return activos().map(it => ({ it, p: proxima(it) })).filter(x => x.p && x.p.estado !== 'ok')
+                    .sort((a, b) => a.p.dias - b.p.dias);
+}
+
+const textoDias = (d) => d < 0 ? `vencida hace ${Math.abs(d)} día${Math.abs(d) === 1 ? '' : 's'}`
+                       : d === 0 ? 'vence hoy' : d === 1 ? 'vence mañana' : `en ${d} días`;
+
+/* ---------------- Navegación ---------------- */
+function go(view, id = null, push = true) {
+    route = { view, id };
+    if (push) history.pushState({ view, id }, '');
+    $('#v-list').classList.toggle('hidden', view !== 'list');
+    $('#v-detail').classList.toggle('hidden', view !== 'detail');
+    window.scrollTo(0, 0);
+    render();
+}
+window.addEventListener('popstate', (e) => {
+    if (document.querySelector('#dialog.open')) return;
+    const s = e.state || { view: 'list' };
+    go(s.view || 'list', s.id || null, false);
+});
+const render = () => route.view === 'list' ? renderList() : renderDetail();
+
+/* ---------------- Lista ---------------- */
+function renderList() {
+    const al = alertas();
+    const act = activos();
+    const fin = items.filter(terminado);
+
+    swapView($('#v-list'), `
+        ${al.length ? `
+        <div>
+            <p class="sec-title">Requiere tu atención</p>
+            <section class="gcard">
+                ${al.map(({ it, p }) => `
+                <button class="grow ${p.estado === 'late' ? 'alerta' : 'alerta-soon'}" data-act="abrir" data-id="${it.id}">
+                    <span class="mono-tile" style="background:${p.estado === 'late' ? 'var(--neg-soft)' : '#FFF4E0'};color:${p.estado === 'late' ? 'var(--neg)' : '#8A5A1E'}">
+                        <span class="dot-pulse"></span>
+                    </span>
+                    <span class="flex-1 min-w-0">
+                        <span class="block text-[15px] font-semibold truncate">${esc(it.name)}</span>
+                        <span class="block text-[12px] mt-0.5" style="color:var(--ink-3)">Cuota ${p.n} de ${nCuotas(it)} · ${fmid(p.due.toISOString())}</span>
+                        <span class="st ${p.estado === 'late' ? 'st-late' : 'st-soon'} mt-1.5">${textoDias(p.dias)}</span>
+                    </span>
+                    <span class="text-right">
+                        <span class="num block text-[15.5px]">${money(montoCuota(it))}</span>
+                        <span class="cur block">HNL</span>
+                    </span>
+                </button>`).join('')}
+            </section>
+        </div>` : ''}
+
+        <div>
+            <p class="sec-title">Resumen</p>
+            <section class="gcard">
+                <div class="px-4 pt-4 pb-4">
+                    <p class="tag">Me falta pagar</p>
+                    <p class="num text-[32px] leading-none mt-2" id="hero">L 0.00</p>
+                    <p class="text-[12px] mt-2" style="color:var(--ink-3)">
+                        ${act.length ? `${act.length} artículo${act.length === 1 ? '' : 's'} en pago${al.length ? '' : ' · todo al día'}` : 'No debes cuotas'}
+                    </p>
+                </div>
+                <div class="kpi">
+                    <div><p class="tag">Cuota mensual</p><p class="num text-[14.5px] mt-1.5">${money(cuotaMensual())}</p></div>
+                    <div><p class="tag">Activos</p><p class="num text-[14.5px] mt-1.5">${act.length}</p></div>
+                    <div><p class="tag">Terminados</p><p class="num text-[14.5px] mt-1.5">${fin.length}</p></div>
+                </div>
+            </section>
+        </div>
+
+        <div>
+            <div class="flex items-center justify-between">
+                <p class="sec-title">En pago</p>
+                <button class="text-[13px] font-semibold mb-2" data-act="nuevo" style="color:var(--brand-text)">+ Agregar artículo</button>
+            </div>
+            ${act.length ? `<section class="gcard">${act.map(fila).join('')}</section>` : `
+            <section class="gcard"><div class="px-4 py-5">
+                <h2 class="text-[16px] font-semibold mb-2">Registra un artículo financiado</h2>
+                <p class="text-[13.5px] mb-4" style="color:var(--ink-2);line-height:1.6">
+                    Anotas qué compraste, en cuántas cuotas y qué día del mes se paga. La aplicación te avisa
+                    ${AVISO_DIAS} días antes de cada vencimiento y marca en rojo lo que se te pasó.</p>
+                <button class="btn btn-primary" data-act="nuevo">Agregar artículo</button>
+            </div></section>`}
+        </div>
+
+        ${fin.length ? `<div>
+            <p class="sec-title">Terminados</p>
+            <section class="gcard">${fin.map(fila).join('')}</section>
+        </div>` : ''}
+    `);
+    countUp($('#hero'), deudaTotal());
+}
+
+function fila(it) {
+    const p = proxima(it), pct = (pagadas(it).length / nCuotas(it)) * 100;
+    const fin = terminado(it);
+    return `<button class="grow" data-act="abrir" data-id="${it.id}">
+        <span class="mono-tile" style="background:${fin ? 'var(--pos-soft)' : tint('#C41E30', .1)};color:${fin ? 'var(--pos)' : 'var(--brand-text)'}">${esc(monogram(it.name))}</span>
+        <span class="flex-1 min-w-0">
+            <span class="block text-[15px] font-semibold truncate">${esc(it.name)}</span>
+            <span class="block text-[12px] mt-0.5 mb-1.5" style="color:var(--ink-3)">
+                ${fin ? 'Pagado por completo' : `${pagadas(it).length} de ${nCuotas(it)} cuotas${p ? ' · ' + textoDias(p.dias) : ''}`}
+            </span>
+            <span class="meter block" style="max-width:200px"><i style="width:${pct}%;${fin ? 'background:var(--pos)' : ''}"></i></span>
+        </span>
+        <span class="text-right">
+            <span class="num block text-[15.5px]">${money(fin ? 0 : restante(it))}</span>
+            <span class="cur block">${fin ? 'LISTO' : 'HNL'}</span>
+        </span>
+        <svg class="grow-chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+    </button>`;
+}
+
+/* ---------------- Detalle ---------------- */
+function renderDetail() {
+    const it = items.find(x => x.id === route.id);
+    if (!it) return go('list', null, false);
+    const p = proxima(it), fin = terminado(it), pct = (pagadas(it).length / nCuotas(it)) * 100;
+
+    let grid = '';
+    for (let n = 1; n <= nCuotas(it); n++) {
+        const st = estadoCuota(it, n), due = cuotaDue(it, n);
+        grid += `<button class="cuota" data-s="${st}" data-act="toggle" data-id="${it.id}" data-n="${n}"
+                 title="Cuota ${n} · ${fmid(due.toISOString())}">
+            <b>${n}</b><span>${String(due.getDate()).padStart(2,'0')}/${String(due.getMonth()+1).padStart(2,'0')}</span>
+        </button>`;
+    }
+
+    const hist = pagadas(it).slice().sort((a, b) => Number(b.n) - Number(a.n));
+
+    swapView($('#v-detail'), `
+        <button class="btn btn-quiet btn-sm -ml-3 mb-3" data-act="volver">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14 18-6-6 6-6"/></svg> Artículos
+        </button>
+
+        ${p && p.estado !== 'ok' ? `
+        <section class="gcard ${p.estado === 'late' ? 'alerta' : 'alerta-soon'}">
+            <div class="px-4 py-4">
+                <p class="st ${p.estado === 'late' ? 'st-late' : 'st-soon'} mb-2">${p.estado === 'late' ? 'Cuota vencida' : 'Se acerca el pago'}</p>
+                <p class="text-[14.5px] font-semibold">Cuota ${p.n} de ${nCuotas(it)} · ${money(montoCuota(it))}</p>
+                <p class="text-[13px] mt-1" style="color:var(--ink-2)">Vence el ${flong(p.due.toISOString())} — ${textoDias(p.dias)}.</p>
+                <button class="btn btn-primary mt-3.5" data-act="pagar" data-id="${it.id}" data-n="${p.n}">Ya la pagué</button>
+            </div>
+        </section>` : ''}
+
+        <div>
+            <section class="gcard">
+                <div class="px-4 pt-4 pb-4">
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <span class="mono-tile" style="background:${fin ? 'var(--pos-soft)' : tint('#C41E30', .1)};color:${fin ? 'var(--pos)' : 'var(--brand-text)'}">${esc(monogram(it.name))}</span>
+                            <div class="min-w-0">
+                                <h1 class="text-[17px] font-semibold truncate">${esc(it.name)}</h1>
+                                <p class="text-[12px]" style="color:var(--ink-3)">${it.store ? esc(it.store) + ' · ' : ''}${esc(it.method || 'Financiado')}</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-1 flex-none">
+                            <button class="btn btn-quiet btn-sm" data-act="editar" data-id="${it.id}" aria-label="Editar" title="Editar">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                            </button>
+                            <button class="btn btn-quiet btn-sm" data-act="borrar" data-id="${it.id}" aria-label="Eliminar" style="color:var(--neg)">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <p class="tag mt-5">${fin ? 'Pagado por completo' : 'Me falta pagar'}</p>
+                    <p class="num text-[30px] leading-none mt-2 ${fin ? 'pos' : ''}" id="hero2">L 0.00</p>
+                    <div class="meter mt-4" style="max-width:320px"><i style="width:${pct}%;${fin ? 'background:var(--pos)' : ''}"></i></div>
+                    <p class="text-[12.5px] mt-2" style="color:var(--ink-3)">
+                        ${pagadas(it).length} de ${nCuotas(it)} cuotas · pagado <span class="num">${money(pagado(it))}</span> de <span class="num">${money(it.total)}</span>
+                    </p>
+                </div>
+                <div class="kpi">
+                    <div><p class="tag">Cuota</p><p class="num text-[14.5px] mt-1.5">${money(montoCuota(it))}</p></div>
+                    <div><p class="tag">Día de pago</p><p class="num text-[14.5px] mt-1.5">${it.dueDay} de c/mes</p></div>
+                    <div><p class="tag">${fin ? 'Terminó' : 'Última cuota'}</p><p class="num text-[14.5px] mt-1.5">${fmid(cuotaDue(it, nCuotas(it)).toISOString())}</p></div>
+                </div>
+            </section>
+        </div>
+
+        <div>
+            <p class="sec-title">Calendario de cuotas</p>
+            <section class="gcard"><div class="px-4 py-4">
+                <div class="cuotas">${grid}</div>
+                <div class="flex flex-wrap gap-x-4 gap-y-1.5 mt-4 text-[11.5px]" style="color:var(--ink-3)">
+                    <span class="flex items-center gap-1.5"><i style="width:9px;height:9px;border-radius:2px;background:var(--pos);display:block"></i> Pagada</span>
+                    <span class="flex items-center gap-1.5"><i style="width:9px;height:9px;border-radius:2px;border:1px solid #C99A3B;display:block"></i> Por vencer</span>
+                    <span class="flex items-center gap-1.5"><i style="width:9px;height:9px;border-radius:2px;background:var(--neg-soft);border:1px solid var(--neg);display:block"></i> Vencida</span>
+                </div>
+                <p class="text-[12px] mt-3" style="color:var(--ink-3)">Toca una cuota para marcarla como pagada o quitar la marca.</p>
+            </div></section>
+        </div>
+
+        ${hist.length ? `<div>
+            <p class="sec-title">Pagos registrados</p>
+            <section class="gcard">
+                ${hist.map(pg => `<div class="grow" style="cursor:default">
+                    <span class="mono-tile" style="background:var(--pos-soft);color:var(--pos)">${pg.n}</span>
+                    <span class="flex-1 min-w-0">
+                        <span class="block text-[14.5px] font-semibold">Cuota ${pg.n}</span>
+                        <span class="block text-[12px]" style="color:var(--ink-3)">Pagada el ${flong(pg.date)}</span>
+                    </span>
+                    <span class="num text-[14.5px] pos">${money(pg.amount || montoCuota(it))}</span>
+                </div>`).join('')}
+            </section>
+        </div>` : ''}
+    `);
+    countUp($('#hero2'), fin ? 0 : restante(it));
+}
+
+/* ---------------- Formularios ---------------- */
+function dlgItem(id = null) {
+    const it = id ? items.find(x => x.id === id) : null;
+    const hoy = new Date();
+    const prox = new Date(hoy.getFullYear(), hoy.getMonth() + (hoy.getDate() > 27 ? 1 : 0), 27);
+    openDialog(`
+    <h2 class="text-[17px] font-semibold mb-5">${it ? 'Editar artículo' : 'Nuevo artículo financiado'}</h2>
+    <div class="space-y-4">
+        <div><label class="label" for="iName">¿Qué compraste?</label>
+            <input id="iName" class="field" maxlength="44" placeholder="Refrigeradora, celular…" value="${esc(it?.name || '')}" data-autofocus></div>
+        <div class="grid grid-cols-2 gap-3">
+            <div><label class="label" for="iStore">Tienda <span class="hint">— opcional</span></label>
+                <input id="iStore" class="field" maxlength="30" placeholder="Almacén" value="${esc(it?.store || '')}"></div>
+            <div><label class="label" for="iMethod">Con qué</label>
+                <select id="iMethod" class="field">
+                    ${['Tarjeta de crédito', 'Financiado por la tienda', 'Préstamo', 'Otro'].map(m =>
+                      `<option ${m === (it?.method || 'Tarjeta de crédito') ? 'selected' : ''}>${m}</option>`).join('')}
+                </select></div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+            <div><label class="label" for="iTotal">Total a pagar</label>
+                <input id="iTotal" class="field field-num" type="number" step="0.01" inputmode="decimal" placeholder="0.00" value="${it?.total || ''}"></div>
+            <div><label class="label" for="iN">Nº de cuotas</label>
+                <input id="iN" class="field field-num" type="number" inputmode="numeric" min="1" max="120" value="${it?.installments || 12}"></div>
+        </div>
+        <div class="card-quiet p-3" style="background:var(--sunk);border-radius:8px">
+            <p class="text-[13px]" style="color:var(--ink-2)">Cada cuota sale en <span class="num font-semibold" id="iPreview" style="color:var(--ink)">L 0.00</span></p>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+            <div><label class="label" for="iDay">Día de pago</label>
+                <input id="iDay" class="field field-num" type="number" inputmode="numeric" min="1" max="31" value="${it?.dueDay || 27}"></div>
+            <div><label class="label" for="iFirst">Primera cuota</label>
+                <input id="iFirst" class="field" type="date" value="${it?.firstDue || isoToDate(prox.toISOString())}"></div>
+        </div>
+        ${dialogFooter(it ? 'save-edit' : 'save-new', it ? 'Guardar cambios' : 'Agregar artículo', it?.id || '')}
+    </div>`);
+    const upd = () => {
+        const t = num('#iTotal'), n = Math.max(1, parseInt($('#iN').value) || 1);
+        $('#iPreview').textContent = money(t / n);
+    };
+    ['#iTotal', '#iN'].forEach(s => $(s).addEventListener('input', upd));
+    $('#iDay').addEventListener('input', () => {
+        const d = new Date($('#iFirst').value + 'T12:00:00');
+        const day = Math.min(31, Math.max(1, parseInt($('#iDay').value) || 1));
+        const ult = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+        d.setDate(Math.min(day, ult));
+        $('#iFirst').value = isoToDate(d.toISOString());
+    });
+    upd();
+}
+
+/* ---------------- Escrituras ---------------- */
+function leerForm() {
+    const name = ($('#iName').value || '').trim();
+    const total = num('#iTotal');
+    const n = Math.max(1, parseInt($('#iN').value) || 1);
+    const dueDay = Math.min(31, Math.max(1, parseInt($('#iDay').value) || 1));
+    const firstDue = $('#iFirst').value;
+    if (!name)  { notice('Escribe qué compraste', 'neg'); return null; }
+    if (total <= 0) { notice('Escribe el total a pagar', 'neg'); return null; }
+    if (!firstDue)  { notice('Elige la fecha de la primera cuota', 'neg'); return null; }
+    return { name, store: ($('#iStore').value || '').trim(), method: $('#iMethod').value,
+             total, installments: n, installmentAmount: total / n, dueDay, firstDue };
+}
+
+async function crear() {
+    const d = leerForm();
+    if (!d) return;
+    try {
+        const ref = await addDoc(collection(db, COL.financiado), { ...d, createdAt: new Date().toISOString(), paid: [] });
+        closeDialog(); notice('Artículo agregado', 'pos'); go('detail', ref.id);
+    } catch (e) { notice('No se pudo guardar: ' + e.message, 'neg'); }
+}
+
+async function editar(id) {
+    const d = leerForm();
+    if (!d) return;
+    try { await updateDoc(doc(db, COL.financiado, id), d); closeDialog(); notice('Actualizado'); }
+    catch (e) { notice('No se pudo guardar: ' + e.message, 'neg'); }
+}
+
+async function marcar(id, n) {
+    const it = items.find(x => x.id === id);
+    n = Number(n);
+    const ya = estaPagada(it, n);
+    let lista;
+    if (ya) lista = pagadas(it).filter(p => Number(p.n) !== n);
+    else    lista = [...pagadas(it), { n, amount: montoCuota(it), date: new Date().toISOString() }];
+    try {
+        await updateDoc(doc(db, COL.financiado, id), { paid: lista });
+        if (!ya) {
+            const quedan = nCuotas(it) - lista.length;
+            notice(quedan === 0 ? '¡Artículo pagado por completo!' : `Cuota ${n} pagada · quedan ${quedan}`, 'pos');
+        } else notice(`Cuota ${n} desmarcada`);
+    } catch (e) { notice('No se pudo guardar: ' + e.message, 'neg'); }
+}
+
+async function borrar(id) {
+    const it = items.find(x => x.id === id);
+    const ok = await askConfirm({ title: 'Eliminar artículo', danger: true, key: true, label: 'Eliminar',
+        body: `Se borra <b>${esc(it.name)}</b> con el registro de sus ${pagadas(it).length} cuota${pagadas(it).length === 1 ? '' : 's'} pagada${pagadas(it).length === 1 ? '' : 's'}. No se puede deshacer.` });
+    if (!ok) return;
+    try { await deleteDoc(doc(db, COL.financiado, id)); go('list'); notice('Artículo eliminado'); }
+    catch (e) { notice('No se pudo eliminar: ' + e.message, 'neg'); }
+}
+
+/* ---------------- Recordatorio al abrir ---------------- */
+function avisarHoy() {
+    const al = alertas();
+    if (!al.length) return;
+    const hoy = todayStr();
+    const visto = leer('mf-aviso-fin', {});
+    const nuevos = al.filter(x => visto[`${x.it.id}-${x.p.n}`] !== hoy);
+    if (!nuevos.length) return;
+    nuevos.forEach(x => visto[`${x.it.id}-${x.p.n}`] = hoy);
+    guardar('mf-aviso-fin', visto);
+
+    const vencidas = nuevos.filter(x => x.p.estado === 'late');
+    const l = nuevos[0];
+    openDialog(`
+    <div class="py-1">
+        <p class="st ${vencidas.length ? 'st-late' : 'st-soon'} mb-3">${vencidas.length ? 'Tienes cuotas vencidas' : 'Se acerca un pago'}</p>
+        <h2 class="text-[18px] font-semibold mb-1.5">${esc(l.it.name)}</h2>
+        <p class="text-[14px] mb-4" style="color:var(--ink-2);line-height:1.6">
+            Cuota ${l.p.n} de ${nCuotas(l.it)} por <span class="num font-semibold">${money(montoCuota(l.it))}</span>,
+            ${textoDias(l.p.dias)} (${flong(l.p.due.toISOString())}).
+        </p>
+        ${nuevos.length > 1 ? `<p class="text-[13px] mb-4" style="color:var(--ink-3)">Y ${nuevos.length - 1} cuota${nuevos.length > 2 ? 's' : ''} más pendiente${nuevos.length > 2 ? 's' : ''}.</p>` : ''}
+        <div class="flex gap-2.5">
+            <button class="btn btn-outline flex-1" data-act="close-dialog">Después</button>
+            <button class="btn btn-primary flex-1" data-act="pagar" data-id="${l.it.id}" data-n="${l.p.n}">Ya la pagué</button>
+        </div>
+    </div>`);
+}
+
+/* ---------------- Eventos ---------------- */
+document.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-act]');
+    if (!el || el.disabled) return;
+    const { act, id, n } = el.dataset;
+    switch (act) {
+        case 'nuevo':  dlgItem(); break;
+        case 'abrir':  closeDialog(); go('detail', id); break;
+        case 'volver': go('list'); break;
+        case 'editar': dlgItem(id); break;
+        case 'borrar': borrar(id); break;
+        case 'toggle': marcar(id, n); break;
+        case 'pagar':  closeDialog(); marcar(id, n); break;
+        case 'save-new':  crear(); break;
+        case 'save-edit': editar(id); break;
+    }
+});
+
+/* ---------------- Arranque ---------------- */
+$('#shell').innerHTML = shellHeader('Financiación');
+let listo = false, avisado = false;
+function mostrar() {
+    if (listo) return;
+    listo = true;
+    $('#boot').classList.add('hidden');
+    $('#app').classList.remove('hidden');
+    saludo();
+    history.replaceState({ view: 'list', id: null }, '');
+    render();
+    setTimeout(() => { if (!avisado) { avisado = true; avisarHoy(); } }, 700);
+}
+bootShell({ onReady: () => {
+    onSnapshot(query(collection(db, COL.financiado)), (snap) => {
+        items = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+        mostrar(); render();
+    }, (err) => { mostrar(); notice('Sin conexión con la nube', 'neg'); console.error(err); });
+}});
+</script>
+</body>
+</html>

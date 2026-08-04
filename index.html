@@ -1,120 +1,290 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>PrestaControl</title>
-
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#C41E30">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-title" content="PrestaControl">
-    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2489/2489756.png">
-
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="theme.css">
-    <style>
-        .mod { display: flex; align-items: center; gap: 14px; padding: 16px; border-bottom: 1px solid var(--rule); text-decoration: none; color: inherit; transition: background .13s ease; }
-        .mod:last-child { border-bottom: 0; }
-        .mod:hover { background: var(--sunk); }
-        .mod:hover .arrow { transform: translateX(3px); color: var(--ink-2); }
-        .arrow { color: var(--brand-text); transition: transform .15s ease, color .15s ease; flex: none; }
-        .ico { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--brand-soft); }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Mis Finanzas</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#C41E30">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Mis Finanzas">
+<link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2489/2489756.png">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="theme.css">
+<script>(function(){var s=localStorage.getItem("mf-theme");document.documentElement.dataset.theme=s?s:(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");})();</script>
+<style>body{padding-bottom:26px;background:var(--paper)}</style>
 </head>
-<body class="min-h-screen">
+<body>
 
-<header class="appbar">
-    <div class="max-w-lg mx-auto px-4 appbar-in">
-        <span class="flex items-center gap-2.5">
-            <span class="mono-tile" style="background: rgba(255,255,255,.16); color: var(--brand-ink); width: 30px; height: 30px; font-size: 11.5px;">PC</span>
-            <span class="font-semibold text-[15.5px]" style="font-family: var(--f-display); letter-spacing: -.01em;">PrestaControl</span>
-        </span>
-        <button id="theme-btn" class="appbar-btn" aria-label="Cambiar tema">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z"/></svg>
-        </button>
-    </div>
-</header>
-
-<div class="greet">
-    <div class="max-w-lg mx-auto px-4 greet-in">
-        <span class="greet-ico" id="greet-ico"></span>
-        <div class="flex-1 min-w-0">
-            <p class="text-[16px] font-semibold truncate" id="greet-text">Hola</p>
-            <p class="text-[12px]" style="color: var(--ink-3);">Control financiero personal · Lempiras</p>
-        </div>
+<div id="boot" class="fixed inset-0 grid place-items-center" style="background:var(--paper);z-index:90">
+    <div class="wrap w-full" style="max-width:460px">
+        <div class="skel h-4 w-24 mb-4"></div><div class="skel h-28 w-full mb-4"></div>
+        <div class="grid grid-cols-2 gap-3"><div class="skel h-24"></div><div class="skel h-24"></div><div class="skel h-24"></div><div class="skel h-24"></div></div>
     </div>
 </div>
 
-<div class="max-w-lg mx-auto px-4 py-5">
+<div id="app" class="hidden">
+    <header class="appbar">
+        <div class="wrap appbar-in">
+            <span class="flex items-center gap-2.5">
+                <span class="mono-tile brandmark">MF</span>
+                <span class="font-semibold text-[15.5px]" style="font-family:var(--f-display);letter-spacing:-.01em">Mis Finanzas</span>
+            </span>
+            <span class="flex items-center gap-1">
+                <button class="appbar-btn" data-act="theme" aria-label="Cambiar tema">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z"/></svg>
+                </button>
+                <button class="appbar-btn" data-act="ajustes" aria-label="Ajustes">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z"/></svg>
+                </button>
+            </span>
+        </div>
+    </header>
 
-    <p class="sec-title">Mis productos</p>
-
-    <div class="gcard">
-        <a href="ahorro.html" class="mod">
-            <span class="ico">
-                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--brand-text)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h3"/></svg>
-            </span>
-            <span class="flex-1 min-w-0">
-                <span class="block text-[15px] font-semibold">Ahorros y fondos</span>
-                <span class="block text-[12.5px] mt-0.5" style="color: var(--ink-3);">Saldos por fondo, estado de cuenta y metas</span>
-            </span>
-            <svg class="arrow" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M12 6l6 6-6 6"/></svg>
-        </a>
-
-        <a href="presta.html" class="mod">
-            <span class="ico">
-                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--brand-text)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5v19"/><path d="M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-            </span>
-            <span class="flex-1 min-w-0">
-                <span class="block text-[15px] font-semibold">Préstamos</span>
-                <span class="block text-[12.5px] mt-0.5" style="color: var(--ink-3);">Réditos, abonos a capital y calendario de cobro</span>
-            </span>
-            <svg class="arrow" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M12 6l6 6-6 6"/></svg>
-        </a>
-
-        <a href="ronda.html" class="mod">
-            <span class="ico">
-                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--brand-text)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7.5" r="3"/><path d="M3 20v-1.5A4.5 4.5 0 0 1 7.5 14h3a4.5 4.5 0 0 1 4.5 4.5V20"/><path d="M16.5 4.6a3 3 0 0 1 0 5.8M21 20v-1.5a4.5 4.5 0 0 0-3-4.2"/></svg>
-            </span>
-            <span class="flex-1 min-w-0">
-                <span class="block text-[15px] font-semibold">Rondas de ahorro</span>
-                <span class="block text-[12.5px] mt-0.5" style="color: var(--ink-3);">Control semanal de quién pagó y a quién le toca</span>
-            </span>
-            <svg class="arrow" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M12 6l6 6-6 6"/></svg>
-        </a>
+    <div class="greet">
+        <div class="wrap greet-in">
+            <span class="greet-ico" id="greet-ico"></span>
+            <div class="flex-1 min-w-0">
+                <p class="text-[16px] font-semibold truncate" id="greet-text">Hola</p>
+                <p class="text-[12px]" style="color:var(--ink-3)" id="greet-sub">Panel de control</p>
+            </div>
+        </div>
     </div>
 
-    <footer class="sitefoot">
-        <p>Los datos se sincronizan entre tus dispositivos y siguen disponibles sin conexión.</p>
-        <p>PrestaControl · <span id="year"></span></p>
+    <main class="wrap py-5"><section id="v"></section></main>
+
+    <footer class="sitefoot wrap">
+        <p id="last-visit"></p>
+        <p>Mis Finanzas · Lempiras · <span id="year"></span></p>
     </footer>
 </div>
 
-<script>
-    (function () {
-        const saved = localStorage.getItem('pc-theme');
-        const dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
-        document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-        const h = new Date().getHours();
-        const nombre = localStorage.getItem('pc-nombre') || '';
-        const txt = h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches';
-        document.getElementById('greet-text').textContent = nombre ? txt + ', ' + nombre : txt;
-        document.getElementById('greet-ico').innerHTML = (h >= 6 && h < 19)
-            ? '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#C9962B" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="4.2" fill="rgba(201,150,43,.18)"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4"/></svg>'
-            : '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#5B6B8C" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z" fill="rgba(91,107,140,.18)"/></svg>';
-        document.getElementById('year').textContent = new Date().getFullYear();
-        document.getElementById('theme-btn').addEventListener('click', () => {
-            const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
-            document.documentElement.dataset.theme = next;
-            localStorage.setItem('pc-theme', next);
-            document.querySelector('meta[name="theme-color"]').setAttribute('content', next === 'dark' ? '#7E1520' : '#C41E30');
-        });
-    })();
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+<script type="module">
+import { db, COL, collection, doc, onSnapshot, query, $, esc, money, money0, notice, openDialog,
+         closeDialog, bootShell, saludo, swapView, countUp, cuotaDue, diasEntre, flong } from './core.js';
+import { analizar } from './analisis.js';
+
+const D = { fondos: [], metas: [], fiado: [], financiado: [], prestamos: [], rondas: [], presupuesto: {} };
+let pend = 7, listo = false;
+
+/* ---------------- Métricas por módulo ---------------- */
+const movs = (f) => Array.isArray(f?.movements) ? f.movements : [];
+const saldoFondo = (f) => movs(f).reduce((a, m) => a + (m.type === 'out' ? -Number(m.amount || 0) : Number(m.amount || 0)), 0);
+const totalAhorro = () => D.fondos.reduce((a, f) => a + saldoFondo(f), 0)
+    + D.metas.reduce((a, p) => a + (p.type === 'challenge'
+        ? (p.savedItems || []).reduce((x, n) => x + Number(n), 0)
+        : (p.deposits || []).reduce((x, d) => x + Number(d.amount || 0), 0)), 0);
+
+const deudaFiado = () => D.fiado.reduce((a, c) =>
+    a + (c.entries || []).reduce((x, e) => x + (e.type === 'payment' ? -Number(e.amount || 0) : Number(e.amount || 0)), 0), 0);
+
+const nC = (i) => Number(i.installments) || 1;
+const mC = (i) => Number(i.installmentAmount) || (Number(i.total) || 0) / nC(i);
+const pd = (i) => Array.isArray(i.paid) ? i.paid : [];
+const fin = (i) => pd(i).length >= nC(i);
+const restaFinanciado = () => D.financiado.filter(i => !fin(i))
+    .reduce((a, i) => a + Math.max(0, (Number(i.total) || 0) - pd(i).reduce((x, p) => x + Number(p.amount || mC(i)), 0)), 0);
+
+function alertasCuotas() {
+    const out = [];
+    D.financiado.filter(i => !fin(i)).forEach(i => {
+        for (let n = 1; n <= nC(i); n++) {
+            if (pd(i).some(p => Number(p.n) === n)) continue;
+            const dias = diasEntre(new Date(), cuotaDue(i, n));
+            if (dias <= 5) out.push({ i, n, dias, due: cuotaDue(i, n) });
+            break;
+        }
+    });
+    return out.sort((a, b) => a.dias - b.dias);
+}
+
+const prestadoAfuera = () => D.prestamos.reduce((a, p) => {
+    const cap = Number(p.amount || p.capital || p.monto || 0);
+    const abonos = (p.payments || p.abonos || []).reduce((x, y) => x + Number(y.capital || y.amount || 0), 0);
+    return a + Math.max(0, cap - abonos);
+}, 0);
+
+const textoDias = (d) => d < 0 ? `vencida hace ${Math.abs(d)} d` : d === 0 ? 'vence hoy' : d === 1 ? 'mañana' : `en ${d} días`;
+
+/* ---------------- Panel ---------------- */
+function render() {
+    const R = analizar(D);
+    const c = R.cifras;
+    const al = alertasCuotas();
+    const ahorro = totalAhorro(), fiadoD = deudaFiado(), finD = restaFinanciado(), prest = prestadoAfuera();
+
+    const ICO = {
+        ahorro:  '<path d="M3 6h18v13H3z"/><path d="M3 10h18M7 15h3"/>',
+        fiado:   '<path d="M3 6h13a2 2 0 0 1 2 2v1"/><path d="M18 9h3v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6"/><circle cx="16.5" cy="14" r="1.2"/>',
+        fin:     '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4"/>',
+        presta:  '<path d="M12 2v20"/><path d="M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+        ronda:   '<circle cx="9" cy="7.5" r="3"/><path d="M3 20v-1.5A4.5 4.5 0 0 1 7.5 14h3a4.5 4.5 0 0 1 4.5 4.5V20"/><path d="M16.5 4.6a3 3 0 0 1 0 5.8M21 20v-1.5a4.5 4.5 0 0 0-3-4.2"/>',
+        presu:   '<path d="M3 3v18h18"/><path d="m7 14 3-4 3 3 5-6"/>',
+        analisis:'<path d="M12 2a10 10 0 1 0 10 10h-10Z"/><path d="M12 2a10 10 0 0 1 10 10"/>'
+    };
+    const tile = (href, ico, name, val, sub, col = 'var(--brand-text)', bg = 'var(--brand-soft)', alerta = false) => `
+        <a href="${href}" class="tile" ${alerta ? 'style="border-color:var(--neg)"' : ''}>
+            <span class="tile-ico" style="background:${bg}">
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="${col}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ico}</svg>
+            </span>
+            <span class="tile-name">${name}</span>
+            <span class="tile-val" style="color:${col}">${val}</span>
+            <span class="tile-sub">${sub}</span>
+        </a>`;
+
+    swapView($('#v'), `
+        ${al.length ? `
+        <div>
+            <p class="sec-title">Pendiente de pago</p>
+            <section class="gcard">
+                ${al.slice(0, 3).map(a => `<a class="grow ${a.dias < 0 ? '' : ''}" href="financiacion.html" style="text-decoration:none;color:inherit;${a.dias < 0 ? 'border-left:3px solid var(--neg)' : 'border-left:3px solid #C99A3B'}">
+                    <span class="mono-tile" style="background:${a.dias < 0 ? 'var(--neg-soft)' : '#FFF4E0'};color:${a.dias < 0 ? 'var(--neg)' : '#8A5A1E'}"><span class="dot-pulse"></span></span>
+                    <span class="flex-1 min-w-0">
+                        <span class="block text-[14.5px] font-semibold truncate">${esc(a.i.name)}</span>
+                        <span class="block text-[12px] mt-0.5" style="color:var(--ink-3)">Cuota ${a.n} de ${nC(a.i)} · ${textoDias(a.dias)}</span>
+                    </span>
+                    <span class="num text-[15px]">${money(mC(a.i))}</span>
+                </a>`).join('')}
+            </section>
+        </div>` : ''}
+
+        <div>
+            <p class="sec-title">Mi posición</p>
+            <section class="gcard">
+                <div class="px-4 pt-4 pb-4">
+                    <p class="tag">Patrimonio neto</p>
+                    <p class="num text-[32px] leading-none mt-2 ${c.patrimonio < 0 ? 'neg' : ''}" id="hero">L 0.00</p>
+                    <p class="text-[12px] mt-2" style="color:var(--ink-3)">Lo que tienes menos lo que debes</p>
+                </div>
+                <div class="kpi">
+                    <div><p class="tag">Tengo</p><p class="num text-[14.5px] mt-1.5 pos">${money(ahorro)}</p></div>
+                    <div><p class="tag">Debo</p><p class="num text-[14.5px] mt-1.5 ${c.deudaTotal > 0 ? 'neg' : ''}">${money(c.deudaTotal)}</p></div>
+                    <div><p class="tag">Salud</p><p class="num text-[14.5px] mt-1.5">${R.total}/100</p></div>
+                </div>
+                <a class="gfoot flex items-center justify-between" href="analisis.html" style="text-decoration:none;color:inherit">
+                    <span class="text-[13.5px] font-semibold" style="color:var(--brand-text)">Ver análisis completo</span>
+                    <svg class="grow-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+                </a>
+            </section>
+        </div>
+
+        <div>
+            <p class="sec-title">Módulos</p>
+            <div class="tiles">
+                ${tile('ahorro.html', ICO.ahorro, 'Ahorros', money0(ahorro),
+                       D.fondos.length ? `${D.fondos.length} fondo${D.fondos.length === 1 ? '' : 's'}` : 'Sin fondos', 'var(--pos)', 'var(--pos-soft)')}
+                ${tile('fiado.html', ICO.fiado, 'Fiado', money0(fiadoD),
+                       fiadoD > 0 ? `en ${D.fiado.filter(x => (x.entries||[]).length).length || D.fiado.length} lugar${D.fiado.length === 1 ? '' : 'es'}` : 'Al día',
+                       fiadoD > 0 ? 'var(--neg)' : 'var(--pos)', fiadoD > 0 ? 'var(--neg-soft)' : 'var(--pos-soft)')}
+                ${tile('financiacion.html', ICO.fin, 'Financiación', money0(finD),
+                       al.length ? `${al.length} cuota${al.length === 1 ? '' : 's'} por pagar` : (finD > 0 ? 'todo al día' : 'Sin cuotas'),
+                       finD > 0 ? 'var(--neg)' : 'var(--pos)', finD > 0 ? 'var(--neg-soft)' : 'var(--pos-soft)', al.some(a => a.dias < 0))}
+                ${tile('presupuesto.html', ICO.presu, 'Ingresos y gastos',
+                       c.ingresos || c.gastos ? money0(c.disponible) : '—',
+                       c.ingresos || c.gastos ? 'me queda al mes' : 'Sin registrar',
+                       c.disponible >= 0 ? 'var(--pos)' : 'var(--neg)', c.disponible >= 0 ? 'var(--pos-soft)' : 'var(--neg-soft)')}
+                ${tile('presta.html', ICO.presta, 'Préstamos', prest > 0 ? money0(prest) : '—',
+                       prest > 0 ? 'me deben' : 'Sin préstamos')}
+                ${tile('ronda.html', ICO.ronda, 'Rondas', D.rondas.length ? String(D.rondas.length) : '—',
+                       D.rondas.length ? `ronda${D.rondas.length === 1 ? '' : 's'} activa${D.rondas.length === 1 ? '' : 's'}` : 'Sin rondas')}
+            </div>
+        </div>
+
+        <div>
+            <p class="sec-title">Atajos</p>
+            <section class="gcard">
+                <a class="grow" href="fiado.html" style="text-decoration:none;color:inherit">
+                    <span class="mono-tile" style="background:var(--brand-soft);color:var(--brand-text)">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                    </span>
+                    <span class="flex-1 text-[14.5px] font-semibold">Anotar algo que saqué fiado</span>
+                    <svg class="grow-chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+                </a>
+                <a class="grow" href="ahorro.html" style="text-decoration:none;color:inherit">
+                    <span class="mono-tile" style="background:var(--pos-soft);color:var(--pos)">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                    </span>
+                    <span class="flex-1 text-[14.5px] font-semibold">Guardar dinero en un fondo</span>
+                    <svg class="grow-chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+                </a>
+                <a class="grow" href="financiacion.html" style="text-decoration:none;color:inherit">
+                    <span class="mono-tile" style="background:var(--sunk);color:var(--ink-2)">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg>
+                    </span>
+                    <span class="flex-1 text-[14.5px] font-semibold">Marcar una cuota como pagada</span>
+                    <svg class="grow-chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+                </a>
+            </section>
+        </div>
+    `);
+    countUp($('#hero'), c.patrimonio);
+    $('#greet-sub').textContent = al.length
+        ? `Tienes ${al.length} cuota${al.length === 1 ? '' : 's'} por pagar`
+        : c.deudaTotal > 0 ? `Debes ${money0(c.deudaTotal)} en total` : 'Todo al día';
+}
+
+/* ---------------- Ajustes ---------------- */
+document.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-act]');
+    if (!el) return;
+    if (el.dataset.act === 'ajustes') {
+        openDialog(`
+        <h2 class="text-[17px] font-semibold mb-5">Ajustes</h2>
+        <div class="space-y-4">
+            <div><label class="label" for="uName">Tu nombre <span class="hint">— para el saludo</span></label>
+                <input id="uName" class="field" maxlength="24" value="${esc(localStorage.getItem('mf-nombre') || '')}" placeholder="Jose" data-autofocus></div>
+            <div style="border:1px solid var(--rule);border-radius:10px;overflow:hidden">
+                <a class="grow" href="analisis.html" style="text-decoration:none;color:inherit;border-top:0">
+                    <span class="flex-1 text-[14.5px] font-semibold">Análisis y conexión con IA</span>
+                    <svg class="grow-chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+                </a>
+                <a class="grow" href="presupuesto.html" style="text-decoration:none;color:inherit">
+                    <span class="flex-1 text-[14.5px] font-semibold">Mi situación laboral</span>
+                    <svg class="grow-chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+                </a>
+            </div>
+            <div class="flex gap-2.5 justify-end pt-1">
+                <button class="btn btn-outline" data-act="close-dialog">Cerrar</button>
+                <button class="btn btn-primary" data-primary data-act="save-name">Guardar</button>
+            </div>
+        </div>`);
     }
+    if (el.dataset.act === 'save-name') {
+        const v = ($('#uName').value || '').trim();
+        v ? localStorage.setItem('mf-nombre', v) : localStorage.removeItem('mf-nombre');
+        saludo(); closeDialog(); notice('Guardado');
+    }
+});
+
+/* ---------------- Arranque ---------------- */
+function mostrar() {
+    if (listo) return;
+    listo = true;
+    $('#boot').classList.add('hidden');
+    $('#app').classList.remove('hidden');
+    saludo(); render();
+    const prev = localStorage.getItem('mf-visita');
+    $('#last-visit').textContent = prev ? `Última visita: ${prev}` : 'Primera visita desde este dispositivo';
+    localStorage.setItem('mf-visita', new Date().toLocaleString('es-HN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+    $('#year').textContent = new Date().getFullYear();
+}
+const sub = (col, campo) => onSnapshot(query(collection(db, col)), (s) => {
+    D[campo] = s.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (--pend <= 0) mostrar();
+    if (listo) render();
+}, () => { if (--pend <= 0) mostrar(); });
+
+bootShell({ onReady: () => {
+    sub(COL.fondos, 'fondos'); sub(COL.metas, 'metas'); sub(COL.fiado, 'fiado');
+    sub(COL.financiado, 'financiado'); sub(COL.prestamos, 'prestamos'); sub(COL.rondas, 'rondas');
+    onSnapshot(doc(db, COL.presupuesto, 'main'), (s) => {
+        D.presupuesto = s.exists() ? s.data() : {};
+        if (--pend <= 0) mostrar();
+        if (listo) render();
+    }, () => { if (--pend <= 0) mostrar(); });
+    setTimeout(mostrar, 3000);
+}});
 </script>
 </body>
 </html>

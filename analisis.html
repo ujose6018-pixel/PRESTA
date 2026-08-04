@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Análisis · Mis Finanzas</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#C41E30">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Análisis">
+<link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2489/2489756.png">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="theme.css">
+<script>(function(){var s=localStorage.getItem("mf-theme");document.documentElement.dataset.theme=s?s:(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");})();</script>
+<style>
+    body{padding-bottom:26px;background:var(--paper)}
+    .rec{display:flex;gap:12px;padding:14px 16px;border-top:1px solid var(--rule);align-items:flex-start}
+    .rec:first-child{border-top:0}
+    .rec-n{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;flex:none;font-family:var(--f-mono);font-size:11px;font-weight:600;background:var(--brand-soft);color:var(--brand-text);margin-top:1px}
+    .ia-txt{font-size:14.5px;line-height:1.72;color:var(--ink-2)}
+    .ia-txt p{margin-bottom:11px} .ia-txt p:last-child{margin-bottom:0}
+    .ia-txt strong{color:var(--ink);font-weight:650}
+    .typing::after{content:'▍';animation:blink 1s steps(2) infinite;color:var(--brand-text)}
+    @keyframes blink{50%{opacity:0}}
+</style>
+</head>
+<body>
+
+<div id="boot" class="fixed inset-0 grid place-items-center" style="background:var(--paper);z-index:90">
+    <div class="wrap w-full" style="max-width:420px">
+        <div class="skel h-4 w-28 mb-4"></div><div class="skel h-40 w-full mb-3"></div><div class="skel h-20 w-full"></div>
+    </div>
+</div>
+
+<div id="app" class="hidden">
+    <div id="shell"></div>
+    <div class="greet">
+        <div class="wrap greet-in">
+            <span class="greet-ico" id="greet-ico"></span>
+            <div class="flex-1 min-w-0">
+                <p class="text-[16px] font-semibold truncate" id="greet-text">Hola</p>
+                <p class="text-[12px]" style="color:var(--ink-3)">Cómo van tus finanzas</p>
+            </div>
+        </div>
+    </div>
+    <main class="wrap py-5"><section id="v"></section></main>
+</div>
+
+<script type="module">
+import { db, COL, collection, doc, onSnapshot, query, $, esc, money, money0, notice, openDialog,
+         closeDialog, bootShell, shellHeader, saludo, swapView, countUp, leer, guardar, flong, clamp } from './core.js';
+import { analizar, resumenParaIA } from './analisis.js';
+
+const D = { fondos: [], metas: [], fiado: [], financiado: [], prestamos: [], presupuesto: {} };
+let R = null, pendientes = 6;
+
+/* ---------------- Vista ---------------- */
+function render() {
+    R = analizar(D);
+    const c = R.cifras;
+    const circ = 2 * Math.PI * 52;
+    const ia = leer('mf-ia-cache', null);
+
+    swapView($('#v'), `
+        <div>
+            <p class="sec-title">Evaluación general</p>
+            <section class="gcard">
+                <div class="px-4 pt-6 pb-5 text-center">
+                    <div class="relative inline-grid place-items-center mb-4">
+                        <svg class="ring" width="130" height="130" viewBox="0 0 120 120">
+                            <circle class="bg" cx="60" cy="60" r="52" stroke-width="9"/>
+                            <circle class="fg" cx="60" cy="60" r="52" stroke-width="9"
+                                    stroke-dasharray="${circ}" stroke-dashoffset="${circ}" id="ring"
+                                    style="stroke:var(--${R.nivel.color === 'soon' ? 'ink-2' : R.nivel.color})"/>
+                        </svg>
+                        <div class="absolute text-center">
+                            <p class="num text-[34px] leading-none" id="score">0</p>
+                            <p class="text-[10px] mono mt-0.5" style="color:var(--ink-3)">DE 100</p>
+                        </div>
+                    </div>
+                    <h2 class="text-[19px] font-semibold">${esc(R.nivel.txt)}</h2>
+                    <p class="text-[13.5px] mt-1.5 max-w-sm mx-auto" style="color:var(--ink-2);line-height:1.6">${esc(R.nivel.desc)}</p>
+                </div>
+                <div class="kpi">
+                    <div><p class="tag">Patrimonio</p><p class="num text-[14.5px] mt-1.5 ${c.patrimonio >= 0 ? '' : 'neg'}">${money(c.patrimonio)}</p></div>
+                    <div><p class="tag">Ahorro</p><p class="num text-[14.5px] mt-1.5 pos">${money(c.ahorroTotal)}</p></div>
+                    <div><p class="tag">Deuda</p><p class="num text-[14.5px] mt-1.5 ${c.deudaTotal > 0 ? 'neg' : ''}">${money(c.deudaTotal)}</p></div>
+                </div>
+            </section>
+        </div>
+
+        <div>
+            <p class="sec-title">Desglose por área</p>
+            <section class="gcard">
+                ${R.areas.map(a => {
+                    const p = Math.round(a.puntos);
+                    const col = p >= 70 ? 'var(--pos)' : p >= 40 ? '#C99A3B' : 'var(--neg)';
+                    return `<div class="px-4 py-3.5" style="border-top:1px solid var(--rule)">
+                        <div class="flex justify-between items-baseline mb-2">
+                            <span class="text-[14.5px] font-semibold">${esc(a.nombre)}</span>
+                            <span class="num text-[13.5px]" style="color:${col}">${p}</span>
+                        </div>
+                        <div class="meter mb-2"><i style="width:${p}%;background:${col}"></i></div>
+                        <p class="text-[12.5px]" style="color:var(--ink-3);line-height:1.55">${esc(a.detalle)}</p>
+                    </div>`;
+                }).join('')}
+            </section>
+        </div>
+
+        ${R.rec.length ? `<div>
+            <p class="sec-title">Qué hacer ahora</p>
+            <section class="gcard">
+                ${R.rec.map((r, i) => `<a class="rec" href="${r.link}" style="text-decoration:none;color:inherit">
+                    <span class="rec-n">${i + 1}</span>
+                    <span class="flex-1 min-w-0">
+                        <span class="block text-[14.5px] font-semibold mb-1">${esc(r.t)}</span>
+                        <span class="block text-[13px]" style="color:var(--ink-2);line-height:1.6">${esc(r.d)}</span>
+                    </span>
+                    <svg class="grow-chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-top:2px"><path d="m9 6 6 6-6 6"/></svg>
+                </a>`).join('')}
+            </section>
+        </div>` : ''}
+
+        <div>
+            <p class="sec-title">Lectura con IA</p>
+            <section class="gcard">
+                <div class="px-4 py-4">
+                    ${ia ? `
+                        <div class="ia-txt" id="ia-out">${ia.html}</div>
+                        <div class="flex items-center justify-between mt-4 pt-3" style="border-top:1px solid var(--rule)">
+                            <span class="text-[11.5px]" style="color:var(--ink-3)">Generado el ${flong(ia.fecha)}</span>
+                            <button class="btn btn-outline btn-sm" data-act="ia">Volver a analizar</button>
+                        </div>`
+                    : `
+                        <p class="text-[13.5px] mb-4" style="color:var(--ink-2);line-height:1.65">
+                            La evaluación de arriba se calcula en tu teléfono y no necesita internet.
+                            Si quieres además una lectura escrita de tu situación, puedes conectar Gemini con tu propia llave.
+                        </p>
+                        <button class="btn btn-primary" data-act="ia">Generar lectura</button>`}
+                </div>
+            </section>
+        </div>
+
+        <div>
+            <p class="sec-title">De dónde salen los números</p>
+            <section class="gcard"><div class="px-4 py-4 space-y-2.5 text-[13px]" style="color:var(--ink-2)">
+                <div class="flex justify-between"><span>Ingresos del mes</span><span class="num">${money(c.ingresos)}</span></div>
+                <div class="flex justify-between"><span>Gastos del mes</span><span class="num">${money(c.gastos)}</span></div>
+                <div class="flex justify-between"><span>Cuotas mensuales</span><span class="num">${money(c.cuotaMes)}</span></div>
+                <div class="flex justify-between"><span>Debo en pulpería</span><span class="num">${money(c.deudaFiado)}</span></div>
+                <div class="flex justify-between"><span>Debo en cuotas</span><span class="num">${money(c.deudaCuotas)}</span></div>
+                <div class="flex justify-between"><span>Meses de colchón</span><span class="num">${c.colchon.toFixed(1)} de ${c.metaColchon}</span></div>
+                <div class="flex justify-between"><span>Meses registrados</span><span class="num">${c.mesesRegistrados}</span></div>
+            </div></section>
+        </div>
+    `);
+
+    countUp($('#score'), R.total, (v) => String(Math.round(v)));
+    requestAnimationFrame(() => {
+        const ring = $('#ring');
+        if (ring) ring.style.strokeDashoffset = circ - (circ * clamp(R.total, 0, 100) / 100);
+    });
+}
+
+/* ---------------- Capa de IA (opcional) ---------------- */
+const KEY = 'mf-gemini-key';
+
+function dlgLlave() {
+    openDialog(`
+    <h2 class="text-[17px] font-semibold mb-2">Conectar Gemini</h2>
+    <p class="text-[13.5px] mb-4" style="color:var(--ink-2);line-height:1.65">
+        Consigue una llave gratis en Google AI Studio. Se guarda solo en este teléfono, nunca en el repositorio ni en la nube.
+    </p>
+    <div class="px-3 py-3 mb-4" style="background:var(--sunk);border-radius:8px">
+        <p class="text-[12.5px]" style="color:var(--ink-2);line-height:1.6">
+            <b>Ten esto en cuenta:</b> en el plan gratuito, Google puede usar lo que envías para entrenar sus modelos.
+            Por eso solo se mandan totales redondeados — nunca los nombres de tus fondos, pulperías ni el detalle de tus movimientos.
+        </p>
+    </div>
+    <div class="space-y-4">
+        <div><label class="label" for="gk">Llave de API</label>
+            <input id="gk" class="field" type="password" placeholder="AIza..." value="${esc(localStorage.getItem(KEY) || '')}" data-autofocus></div>
+        <div class="flex gap-2.5 justify-between pt-1">
+            ${localStorage.getItem(KEY) ? `<button class="btn btn-danger" data-act="quitar-llave">Quitar llave</button>` : '<span></span>'}
+            <div class="flex gap-2.5">
+                <button class="btn btn-outline" data-act="close-dialog">Cancelar</button>
+                <button class="btn btn-primary" data-primary data-act="guardar-llave">Guardar y analizar</button>
+            </div>
+        </div>
+    </div>`);
+}
+
+function verLlave() {
+    openDialog(`
+    <h2 class="text-[17px] font-semibold mb-3">Esto es lo que se envía</h2>
+    <pre style="background:var(--sunk);border-radius:8px;padding:12px;font-family:var(--f-mono);font-size:11.5px;line-height:1.65;overflow-x:auto;color:var(--ink-2)">${esc(JSON.stringify(resumenParaIA(R), null, 2))}</pre>
+    <p class="text-[12.5px] mt-3 mb-4" style="color:var(--ink-3);line-height:1.6">Solo totales. Ningún nombre, ninguna fecha, ningún movimiento individual.</p>
+    <div class="flex gap-2.5 justify-end">
+        <button class="btn btn-outline" data-act="close-dialog">Cerrar</button>
+        <button class="btn btn-primary" data-act="ia-run">Enviar y analizar</button>
+    </div>`);
+}
+
+const mdHtml = (t) => '<p>' + esc(t).trim()
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\n{2,}/g, '</p><p>')
+    .replace(/\n/g, '<br>') + '</p>';
+
+async function correrIA() {
+    const key = localStorage.getItem(KEY);
+    if (!key) return dlgLlave();
+    closeDialog();
+
+    const host = $('#ia-out') || (() => { render(); return $('#ia-out'); })();
+    const caja = $('[data-act="ia"]')?.closest('.gcard')?.querySelector('.px-4');
+    if (caja) caja.innerHTML = `<p class="ia-txt typing" id="ia-live">Analizando tus números</p>`;
+
+    const prompt = `Eres un asesor financiero hondureño hablando con una persona real, no un cliente corporativo.
+Analiza estos datos y escribe 3 o 4 párrafos cortos en español de Honduras, tono directo y cálido, sin tecnicismos ni listas.
+Habla de "usted" no, usa "vos" o "tú" de forma natural. Menciona cifras concretas en Lempiras.
+Sé honesto: si algo va mal, dilo claro; si va bien, reconócelo. No inventes datos que no estén aquí.
+Cierra con la única cosa más importante que debería hacer este mes.
+
+Datos: ${JSON.stringify(resumenParaIA(R))}`;
+
+    try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(key)}`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }],
+                                   generationConfig: { temperature: 0.7, maxOutputTokens: 700 } })
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(res.status === 400 ? 'La llave no es válida'
+                          : res.status === 429 ? 'Se acabó la cuota gratis por hoy. Intenta mañana.'
+                          : (err?.error?.message || `Error ${res.status}`));
+        }
+        const data = await res.json();
+        const txt = (data?.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('').trim();
+        if (!txt) throw new Error('No devolvió texto');
+        guardar('mf-ia-cache', { html: mdHtml(txt), fecha: new Date().toISOString(), score: R.total });
+        render();
+        notice('Análisis generado', 'pos');
+    } catch (e) {
+        notice(e.message, 'neg');
+        render();
+    }
+}
+
+/* ---------------- Eventos ---------------- */
+document.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-act]');
+    if (!el) return;
+    switch (el.dataset.act) {
+        case 'ia':            localStorage.getItem(KEY) ? verLlave() : dlgLlave(); break;
+        case 'ia-run':        correrIA(); break;
+        case 'guardar-llave': {
+            const v = ($('#gk').value || '').trim();
+            if (!v) { notice('Pega tu llave', 'neg'); return; }
+            localStorage.setItem(KEY, v); closeDialog(); verLlave();
+            break;
+        }
+        case 'quitar-llave':
+            localStorage.removeItem(KEY); localStorage.removeItem('mf-ia-cache');
+            closeDialog(); render(); notice('Llave eliminada de este teléfono');
+            break;
+    }
+});
+
+/* ---------------- Arranque ---------------- */
+$('#shell').innerHTML = shellHeader('Análisis');
+let listo = false;
+function mostrar() {
+    if (listo) return;
+    listo = true;
+    $('#boot').classList.add('hidden');
+    $('#app').classList.remove('hidden');
+    saludo(); render();
+}
+const suscribir = (col, campo) => onSnapshot(query(collection(db, col)), (s) => {
+    D[campo] = s.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (--pendientes <= 0) mostrar();
+    if (listo) render();
+}, () => { if (--pendientes <= 0) mostrar(); });
+
+bootShell({ onReady: () => {
+    suscribir(COL.fondos, 'fondos');
+    suscribir(COL.metas, 'metas');
+    suscribir(COL.fiado, 'fiado');
+    suscribir(COL.financiado, 'financiado');
+    suscribir(COL.prestamos, 'prestamos');
+    onSnapshot(doc(db, COL.presupuesto, 'main'), (s) => {
+        D.presupuesto = s.exists() ? s.data() : {};
+        if (--pendientes <= 0) mostrar();
+        if (listo) render();
+    }, () => { if (--pendientes <= 0) mostrar(); });
+    setTimeout(mostrar, 3000);
+}});
+</script>
+</body>
+</html>

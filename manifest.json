@@ -1,11 +1,11 @@
 {
-  "name": "PrestaControl",
-  "short_name": "PrestaControl",
-  "description": "Ahorros, fondos, préstamos y rondas en Lempiras.",
+  "name": "Mis Finanzas",
+  "short_name": "Mis Finanzas",
+  "description": "Ahorros, fiado, cuotas, préstamos y análisis financiero en Lempiras.",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#F6F5F2",
-  "theme_color": "#F6F5F2",
+  "theme_color": "#C41E30",
   "orientation": "portrait",
   "icons": [
     {

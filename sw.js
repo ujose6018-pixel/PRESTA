@@ -1,4 +1,4 @@
-const CACHE_NAME = 'presta-control-v3';
+const CACHE_NAME = 'mis-finanzas-v4';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -6,6 +6,12 @@ const ASSETS_TO_CACHE = [
   './ronda.html',
   './ahorro.html',
   './theme.css',
+  './analisis.html',
+  './presupuesto.html',
+  './financiacion.html',
+  './fiado.html',
+  './analisis.js',
+  './core.js',
   './manifest.json',
   'https://cdn.tailwindcss.com',
   'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js',

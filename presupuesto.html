@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Ingresos y gastos · Mis Finanzas</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#C41E30">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Presupuesto">
+<link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2489/2489756.png">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="theme.css">
+<script>(function(){var s=localStorage.getItem("mf-theme");document.documentElement.dataset.theme=s?s:(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");})();</script>
+<style>body{padding-bottom:26px;background:var(--paper)}</style>
+</head>
+<body>
+
+<div id="boot" class="fixed inset-0 grid place-items-center" style="background:var(--paper);z-index:90">
+    <div class="wrap w-full" style="max-width:420px">
+        <div class="skel h-4 w-32 mb-4"></div><div class="skel h-24 w-full mb-3"></div><div class="skel h-16 w-full"></div>
+    </div>
+</div>
+
+<div id="app" class="hidden">
+    <div id="shell"></div>
+    <div class="greet">
+        <div class="wrap greet-in">
+            <span class="greet-ico" id="greet-ico"></span>
+            <div class="flex-1 min-w-0">
+                <p class="text-[16px] font-semibold truncate" id="greet-text">Hola</p>
+                <p class="text-[12px]" style="color:var(--ink-3)">Lo que entra y lo que sale cada mes</p>
+            </div>
+        </div>
+    </div>
+    <main class="wrap py-5"><section id="v"></section></main>
+</div>
+
+<script type="module">
+import { db, COL, doc, setDoc, onSnapshot, $, esc, uid, money, money0, notice, openDialog,
+         closeDialog, askConfirm, num, dialogFooter, bootShell, shellHeader, saludo, swapView,
+         countUp, flong } from './core.js';
+
+const REF = doc(db, COL.presupuesto, 'main');
+const VACIO = { empleo: 'independiente', estabilidad: 'variable', ingresos: [], gastos: [], updatedAt: null };
+let P = { ...VACIO };
+
+const EMPLEOS = {
+    fijo:           { label: 'Trabajo fijo',    desc: 'Sueldo estable cada mes o quincena' },
+    independiente:  { label: 'Por mi cuenta',   desc: 'Ingresos que varían según el trabajo' },
+    mixto:          { label: 'Fijo y aparte',   desc: 'Un sueldo base más trabajos extra' },
+    sin:            { label: 'Sin trabajo ahora', desc: 'Buscando o entre trabajos' }
+};
+const CAT_G = ['Comida', 'Vivienda', 'Transporte', 'Servicios', 'Salud', 'Educación', 'Deudas', 'Familia', 'Otro'];
+const ESENCIALES = ['Comida', 'Vivienda', 'Servicios', 'Salud', 'Deudas'];
+
+/* ---------------- Cálculos ---------------- */
+/** Todo se normaliza a monto mensual. */
+const aMensual = (m, frec) => {
+    const v = Number(m) || 0;
+    return frec === 'semanal' ? v * 4.33 : frec === 'quincenal' ? v * 2 : frec === 'anual' ? v / 12 : v;
+};
+const lista = (k) => Array.isArray(P[k]) ? P[k] : [];
+const totalIngresos = () => lista('ingresos').reduce((a, i) => a + aMensual(i.amount, i.freq), 0);
+const totalGastos   = () => lista('gastos').reduce((a, g) => a + aMensual(g.amount, g.freq), 0);
+const gastosFijos   = () => lista('gastos').filter(g => ESENCIALES.includes(g.cat)).reduce((a, g) => a + aMensual(g.amount, g.freq), 0);
+const balance = () => totalIngresos() - totalGastos();
+const tasaAhorro = () => { const i = totalIngresos(); return i > 0 ? (balance() / i) * 100 : 0; };
+
+/* ---------------- Vista ---------------- */
+function render() {
+    const ing = totalIngresos(), gas = totalGastos(), bal = balance(), tasa = tasaAhorro();
+    const max = Math.max(ing, gas, 1);
+    const emp = EMPLEOS[P.empleo] || EMPLEOS.independiente;
+
+    const porCat = {};
+    lista('gastos').forEach(g => { porCat[g.cat || 'Otro'] = (porCat[g.cat || 'Otro'] || 0) + aMensual(g.amount, g.freq); });
+    const cats = Object.entries(porCat).sort((a, b) => b[1] - a[1]);
+
+    swapView($('#v'), `
+        <div>
+            <p class="sec-title">Mi mes</p>
+            <section class="gcard">
+                <div class="px-4 pt-4 pb-4">
+                    <p class="tag">Me queda al mes</p>
+                    <p class="num text-[32px] leading-none mt-2 ${bal > 0 ? 'pos' : bal < 0 ? 'neg' : ''}" id="hero">L 0.00</p>
+                    <p class="text-[12px] mt-2" style="color:var(--ink-3)">
+                        ${ing === 0 && gas === 0 ? 'Agrega tus ingresos y gastos para empezar'
+                          : bal >= 0 ? `Ahorras el ${Math.round(tasa)}% de lo que ganas` : `Gastas ${money0(Math.abs(bal))} más de lo que entra`}
+                    </p>
+                    ${ing || gas ? `
+                    <div class="space-y-3 mt-5">
+                        <div>
+                            <div class="flex justify-between items-baseline mb-1.5">
+                                <span class="text-[13.5px]" style="color:var(--ink-2)">Entra</span>
+                                <span class="num text-[14px] pos">${money(ing)}</span>
+                            </div>
+                            <div class="meter"><i style="width:${ing / max * 100}%;background:var(--pos)"></i></div>
+                        </div>
+                        <div>
+                            <div class="flex justify-between items-baseline mb-1.5">
+                                <span class="text-[13.5px]" style="color:var(--ink-2)">Sale</span>
+                                <span class="num text-[14px] neg">${money(gas)}</span>
+                            </div>
+                            <div class="meter"><i style="width:${gas / max * 100}%;background:var(--neg)"></i></div>
+                        </div>
+                    </div>` : ''}
+                </div>
+                <div class="kpi">
+                    <div><p class="tag">Gastos fijos</p><p class="num text-[14.5px] mt-1.5">${money(gastosFijos())}</p></div>
+                    <div><p class="tag">Tasa de ahorro</p><p class="num text-[14.5px] mt-1.5 ${tasa >= 10 ? 'pos' : tasa < 0 ? 'neg' : ''}">${Math.round(tasa)}%</p></div>
+                    <div><p class="tag">Situación</p><p class="text-[13px] font-semibold mt-1.5">${esc(emp.label)}</p></div>
+                </div>
+            </section>
+        </div>
+
+        <div>
+            <p class="sec-title">Mi situación laboral</p>
+            <section class="gcard">
+                <button class="grow" data-act="empleo">
+                    <span class="mono-tile" style="background:var(--brand-soft);color:var(--brand-text)">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    </span>
+                    <span class="flex-1 min-w-0">
+                        <span class="block text-[15px] font-semibold">${esc(emp.label)}</span>
+                        <span class="block text-[12px] mt-0.5" style="color:var(--ink-3)">${esc(emp.desc)}</span>
+                    </span>
+                    <svg class="grow-chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+                </button>
+            </section>
+        </div>
+
+        <div>
+            <div class="flex items-center justify-between">
+                <p class="sec-title">Lo que entra</p>
+                <button class="text-[13px] font-semibold mb-2" data-act="nuevo-ing" style="color:var(--brand-text)">+ Agregar</button>
+            </div>
+            ${lista('ingresos').length ? `<section class="gcard">${lista('ingresos').map(i => filaMonto(i, 'ingresos', 'pos')).join('')}</section>` : `
+            <section class="gcard"><div class="px-4 py-5">
+                <p class="text-[13.5px] mb-4" style="color:var(--ink-2);line-height:1.6">
+                    ${P.empleo === 'independiente' || P.empleo === 'sin'
+                      ? 'Como tus ingresos varían, anota un promedio de lo que sueles recibir. Puedes ajustarlo cuando cambie.'
+                      : 'Anota tu sueldo y cualquier otro ingreso que recibas.'}</p>
+                <button class="btn btn-primary" data-act="nuevo-ing">Agregar ingreso</button>
+            </div></section>`}
+        </div>
+
+        <div>
+            <div class="flex items-center justify-between">
+                <p class="sec-title">Lo que sale</p>
+                <button class="text-[13px] font-semibold mb-2" data-act="nuevo-gas" style="color:var(--brand-text)">+ Agregar</button>
+            </div>
+            ${lista('gastos').length ? `<section class="gcard">${lista('gastos').map(g => filaMonto(g, 'gastos', 'neg')).join('')}</section>` : `
+            <section class="gcard"><div class="px-4 py-5">
+                <p class="text-[13.5px] mb-4" style="color:var(--ink-2);line-height:1.6">Anota tus gastos del mes: comida, alquiler, luz, transporte, cuotas.</p>
+                <button class="btn btn-primary" data-act="nuevo-gas">Agregar gasto</button>
+            </div></section>`}
+        </div>
+
+        ${cats.length ? `<div>
+            <p class="sec-title">En qué se va</p>
+            <section class="gcard"><div class="px-4 py-4 space-y-3">
+                ${cats.map(([c, v]) => `<div>
+                    <div class="flex justify-between items-baseline mb-1.5">
+                        <span class="text-[13.5px]">${esc(c)}${ESENCIALES.includes(c) ? ' <span class="badge">fijo</span>' : ''}</span>
+                        <span class="num text-[13.5px]">${money(v)} <span style="color:var(--ink-3)">· ${Math.round(v / gas * 100)}%</span></span>
+                    </div>
+                    <div class="meter"><i style="width:${v / cats[0][1] * 100}%"></i></div>
+                </div>`).join('')}
+            </div></section>
+        </div>` : ''}
+
+        ${P.updatedAt ? `<p class="text-[11.5px] text-center" style="color:var(--ink-3)">Actualizado el ${flong(P.updatedAt)}</p>` : ''}
+    `);
+    countUp($('#hero'), bal);
+}
+
+function filaMonto(x, tipo, cls) {
+    const mensual = aMensual(x.amount, x.freq);
+    const frecTxt = { mensual: 'al mes', quincenal: 'quincenal', semanal: 'semanal', anual: 'al año' }[x.freq] || 'al mes';
+    return `<button class="grow" data-act="editar" data-tipo="${tipo}" data-id="${x.id}">
+        <span class="flex-1 min-w-0">
+            <span class="block text-[15px] font-semibold truncate">${esc(x.label)}</span>
+            <span class="block text-[12px] mt-0.5" style="color:var(--ink-3)">
+                ${x.cat ? esc(x.cat) + ' · ' : ''}${money0(x.amount)} ${frecTxt}${x.freq !== 'mensual' ? ` → ${money0(mensual)}/mes` : ''}
+            </span>
+        </span>
+        <span class="num text-[15.5px] ${cls}">${money(mensual)}</span>
+        <svg class="grow-chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+    </button>`;
+}
+
+/* ---------------- Formularios ---------------- */
+function dlgEmpleo() {
+    openDialog(`
+    <h2 class="text-[17px] font-semibold mb-1">Tu situación laboral</h2>
+    <p class="text-[13px] mb-4" style="color:var(--ink-3)">Sirve para ajustar el análisis a tu realidad.</p>
+    <div style="border:1px solid var(--rule);border-radius:10px;overflow:hidden">
+        ${Object.entries(EMPLEOS).map(([k, v]) => `
+        <button class="grow" data-act="set-empleo" data-v="${k}">
+            <span class="flex-1 min-w-0">
+                <span class="block text-[14.5px] font-semibold">${esc(v.label)}</span>
+                <span class="block text-[12px] mt-0.5" style="color:var(--ink-3)">${esc(v.desc)}</span>
+            </span>
+            ${P.empleo === k ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--pos)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg>` : ''}
+        </button>`).join('')}
+    </div>`);
+}
+
+function dlgMonto(tipo, id = null) {
+    const ing = tipo === 'ingresos';
+    const x = id ? lista(tipo).find(v => v.id === id) : null;
+    const cats = ing ? ['Sueldo', 'Negocio', 'Trabajos extra', 'Alquiler', 'Ayuda familiar', 'Otro'] : CAT_G;
+    const sel = x?.cat || cats[0];
+    openDialog(`
+    <h2 class="text-[17px] font-semibold mb-5">${x ? 'Editar' : ing ? 'Nuevo ingreso' : 'Nuevo gasto'}</h2>
+    <div class="space-y-4">
+        <div><label class="label" for="xLabel">Nombre</label>
+            <input id="xLabel" class="field" maxlength="36" placeholder="${ing ? 'Sueldo, venta de pan…' : 'Alquiler, luz, comida…'}" value="${esc(x?.label || '')}" data-autofocus></div>
+        <div class="grid grid-cols-2 gap-3">
+            <div><label class="label" for="xAmount">Monto</label>
+                <input id="xAmount" class="field field-num" type="number" step="0.01" inputmode="decimal" placeholder="0.00" value="${x?.amount || ''}"></div>
+            <div><label class="label" for="xFreq">Cada cuánto</label>
+                <select id="xFreq" class="field">
+                    ${[['mensual','Al mes'],['quincenal','Quincenal'],['semanal','Semanal'],['anual','Al año']].map(([v, l]) =>
+                      `<option value="${v}" ${v === (x?.freq || 'mensual') ? 'selected' : ''}>${l}</option>`).join('')}
+                </select></div>
+        </div>
+        <div><span class="label">Categoría</span>
+            <div class="flex flex-wrap gap-1.5" id="xCat" data-v="${esc(sel)}">
+                ${cats.map(c => `<button type="button" class="chip" aria-pressed="${c === sel}" data-act="cat" data-v="${esc(c)}">${esc(c)}</button>`).join('')}
+            </div></div>
+        <div class="flex gap-2.5 ${x ? 'justify-between' : 'justify-end'} pt-1">
+            ${x ? `<button type="button" class="btn btn-danger" data-act="borrar" data-tipo="${tipo}" data-id="${id}">Borrar</button>` : ''}
+            <div class="flex gap-2.5">
+                <button type="button" class="btn btn-outline" data-act="close-dialog">Cancelar</button>
+                <button type="button" class="btn btn-primary" data-primary data-act="guardar" data-tipo="${tipo}" data-id="${id || ''}">Guardar</button>
+            </div>
+        </div>
+    </div>`);
+}
+
+/* ---------------- Escrituras ---------------- */
+async function persistir(patch, msg) {
+    const next = { ...P, ...patch, updatedAt: new Date().toISOString() };
+    try { await setDoc(REF, next, { merge: true }); if (msg) notice(msg, 'pos'); }
+    catch (e) { notice('No se pudo guardar: ' + e.message, 'neg'); }
+}
+
+async function guardarMonto(tipo, id) {
+    const label = ($('#xLabel').value || '').trim();
+    const amount = num('#xAmount');
+    if (!label)     { notice('Escribe un nombre', 'neg'); return; }
+    if (amount <= 0) { notice('Escribe un monto mayor a cero', 'neg'); return; }
+    const item = { id: id || uid(), label, amount, freq: $('#xFreq').value, cat: $('#xCat').dataset.v };
+    const arr = id ? lista(tipo).map(v => v.id === id ? item : v) : [...lista(tipo), item];
+    closeDialog();
+    await persistir({ [tipo]: arr }, id ? 'Actualizado' : 'Agregado');
+}
+
+async function borrarMonto(tipo, id) {
+    closeDialog();
+    const ok = await askConfirm({ title: 'Borrar', danger: true, label: 'Borrar', body: 'Se quita de tu presupuesto.' });
+    if (!ok) return;
+    await persistir({ [tipo]: lista(tipo).filter(v => v.id !== id) }, 'Borrado');
+}
+
+/* ---------------- Eventos ---------------- */
+document.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-act]');
+    if (!el || el.disabled) return;
+    const { act, tipo, id, v } = el.dataset;
+    switch (act) {
+        case 'empleo':     dlgEmpleo(); break;
+        case 'set-empleo': closeDialog(); persistir({ empleo: v }, 'Situación actualizada'); break;
+        case 'nuevo-ing':  dlgMonto('ingresos'); break;
+        case 'nuevo-gas':  dlgMonto('gastos'); break;
+        case 'editar':     dlgMonto(tipo, id); break;
+        case 'guardar':    guardarMonto(tipo, id || null); break;
+        case 'borrar':     borrarMonto(tipo, id); break;
+        case 'cat':
+            $('#xCat').dataset.v = v;
+            $('#xCat').querySelectorAll('.chip').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === v));
+            break;
+    }
+});
+
+/* ---------------- Arranque ---------------- */
+$('#shell').innerHTML = shellHeader('Ingresos y gastos');
+let listo = false;
+function mostrar() {
+    if (listo) return;
+    listo = true;
+    $('#boot').classList.add('hidden');
+    $('#app').classList.remove('hidden');
+    saludo(); render();
+}
+bootShell({ onReady: () => {
+    onSnapshot(REF, (snap) => {
+        P = snap.exists() ? { ...VACIO, ...snap.data() } : { ...VACIO };
+        mostrar(); render();
+    }, (err) => { mostrar(); notice('Sin conexión con la nube', 'neg'); console.error(err); });
+}});
+</script>
+</body>
+</html>

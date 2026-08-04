@@ -82,15 +82,15 @@
     <header class="appbar">
         <div class="max-w-3xl mx-auto px-3 appbar-in">
             <span class="flex items-center gap-2.5 min-w-0">
-                <span class="mono-tile" style="background: rgba(255,255,255,.16); color: var(--brand-ink); width: 30px; height: 30px; font-size: 11.5px;">PC</span>
-                <span class="font-semibold text-[15.5px] truncate" style="font-family: var(--f-display); letter-spacing: -.01em;">PrestaControl</span>
+                <span class="mono-tile" style="background: rgba(255,255,255,.16); color: var(--brand-ink); width: 30px; height: 30px; font-size: 11.5px;">MF</span>
+                <span class="font-semibold text-[15.5px] truncate" style="font-family: var(--f-display); letter-spacing: -.01em;">Mis Finanzas</span>
             </span>
             <span class="flex items-center gap-1">
                 <button id="theme-btn" class="appbar-btn" aria-label="Cambiar tema">
                     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z"/></svg>
                 </button>
                 <a href="index.html" class="appbar-btn" aria-label="Volver al menú principal">
-                    Menú
+                    Panel
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4"/><path d="M10 16l4-4-4-4M14 12H4"/></svg>
                 </a>
             </span>
@@ -729,7 +729,7 @@ function renderGoalDetail() {
    LOGROS
    Se calculan con los datos reales; nada se guarda en la nube.
    ============================================================ */
-const K_LOGROS = 'pc-logros', K_VISTOS = 'pc-logros-vistos';
+const K_LOGROS = 'mf-logros', K_VISTOS = 'mf-logros-vistos';
 const leer = (k) => { try { return JSON.parse(localStorage.getItem(k)) || {}; } catch { return {}; } };
 const guardar = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 
@@ -907,7 +907,7 @@ function dialogMore() {
     <div class="space-y-4">
         <div>
             <label class="label" for="uName">Tu nombre <span class="hint">— para el saludo</span></label>
-            <input id="uName" class="field" maxlength="24" value="${esc(localStorage.getItem('pc-nombre') || '')}" placeholder="Jose" data-autofocus>
+            <input id="uName" class="field" maxlength="24" value="${esc(localStorage.getItem('mf-nombre') || '')}" placeholder="Jose" data-autofocus>
         </div>
         <div style="border: 1px solid var(--rule); border-radius: var(--radius); overflow: hidden;">
             <button class="grow" data-act="logros" style="border-top:0">
@@ -932,7 +932,7 @@ function dialogMore() {
 
 function saludo() {
     const h = new Date().getHours();
-    const nombre = localStorage.getItem('pc-nombre') || '';
+    const nombre = localStorage.getItem('mf-nombre') || '';
     const txt = h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches';
     $('#greet-text').textContent = nombre ? `${txt}, ${nombre}` : txt;
     $('#greet-ico').innerHTML = h >= 6 && h < 19
@@ -1359,7 +1359,7 @@ document.addEventListener('click', (e) => {
         case 'fab':           funds.length ? pickFund('in') : dialogFund(); break;
         case 'save-name': {
             const v2 = ($('#uName').value || '').trim();
-            v2 ? localStorage.setItem('pc-nombre', v2) : localStorage.removeItem('pc-nombre');
+            v2 ? localStorage.setItem('mf-nombre', v2) : localStorage.removeItem('mf-nombre');
             saludo(); closeDialog(); notice('Ajustes guardados');
             break;
         }
@@ -1430,14 +1430,14 @@ document.addEventListener('keydown', (e) => {
 
 /* ---------------- Tema ---------------- */
 (function theme() {
-    const saved = localStorage.getItem('pc-theme');
+    const saved = localStorage.getItem('mf-theme');
     const dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
     document.documentElement.dataset.theme = dark ? 'dark' : 'light';
     document.addEventListener('click', (e) => {
         if (!e.target.closest('#theme-btn')) return;
         const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
         document.documentElement.dataset.theme = next;
-        localStorage.setItem('pc-theme', next);
+        localStorage.setItem('mf-theme', next);
         document.querySelector('meta[name="theme-color"]')?.setAttribute('content', next === 'dark' ? '#7E1520' : '#C41E30');
     });
 })();
@@ -1449,9 +1449,9 @@ function boot() {
     b.classList.add('hidden');
     $('#app').classList.remove('hidden');
     saludo();
-    const previa = localStorage.getItem('pc-visita');
+    const previa = localStorage.getItem('mf-visita');
     $('#last-visit').textContent = previa ? `Última visita: ${previa}` : 'Primera visita desde este dispositivo';
-    localStorage.setItem('pc-visita', new Date().toLocaleString('es-HN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+    localStorage.setItem('mf-visita', new Date().toLocaleString('es-HN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     $('#year').textContent = new Date().getFullYear();
     history.replaceState({ view: 'home', id: null }, '');
     render();

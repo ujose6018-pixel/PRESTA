@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Fiado · Mis Finanzas</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#C41E30">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Fiado">
+<link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2489/2489756.png">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="theme.css">
+<script>(function(){var s=localStorage.getItem("mf-theme");document.documentElement.dataset.theme=s?s:(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");})();</script>
+<style>
+    body { padding-bottom: 26px; background: var(--paper); }
+    .stmt { width: 100%; border-collapse: collapse; }
+    .stmt th { font-family: var(--f-mono); font-size:10px; font-weight:500; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); padding:0 0 7px; border-bottom:1px solid var(--rule-2); }
+    .stmt td { padding:10px 0; border-bottom:1px solid var(--rule); vertical-align:top; }
+    .stmt tr:last-child td { border-bottom:0; }
+    .c-date{width:54px} .c-amt{width:92px;text-align:right} .c-bal{width:92px;text-align:right}
+    @media(min-width:640px){ .c-date{width:96px} .c-amt,.c-bal{width:126px} }
+    .row-click{cursor:pointer} .row-click:hover td{background:var(--sunk)}
+    .amt{font-family:var(--f-mono);font-size:13.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
+    .bal{font-family:var(--f-mono);font-size:12.5px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+    .detail{font-size:14px;font-weight:500} .detail small{display:block;font-size:11.5px;color:var(--ink-3);font-weight:400;margin-top:1px}
+    .date-cell{font-family:var(--f-mono);font-size:11.5px;color:var(--ink-3);padding-top:2px}
+    .band td{padding:9px 0 7px;background:var(--sunk);border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);font-family:var(--f-mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2)}
+    .band td:first-child{padding-left:8px} .band td:last-child{padding-right:8px}
+</style>
+</head>
+<body>
+
+<div id="boot" class="fixed inset-0 grid place-items-center" style="background:var(--paper);z-index:90;">
+    <div class="wrap w-full" style="max-width:420px">
+        <div class="skel h-4 w-28 mb-4"></div><div class="skel h-24 w-full mb-3"></div><div class="skel h-16 w-full"></div>
+    </div>
+</div>
+
+<div id="app" class="hidden">
+    <div id="shell"></div>
+    <div class="greet">
+        <div class="wrap greet-in">
+            <span class="greet-ico" id="greet-ico"></span>
+            <div class="flex-1 min-w-0">
+                <p class="text-[16px] font-semibold truncate" id="greet-text">Hola</p>
+                <p class="text-[12px]" style="color:var(--ink-3)">Control de crédito en pulpería</p>
+            </div>
+        </div>
+    </div>
+    <main class="wrap py-5">
+        <section id="v-list"></section>
+        <section id="v-detail" class="hidden"></section>
+    </main>
+</div>
+
+<script type="module">
+import { db, COL, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc, query, arrayUnion,
+         $, esc, uid, money, money0, monogram, tint, fshort, flong, ftime, monthKey, monthLabel,
+         todayStr, isoToDate, dateToISO, notice, openDialog, closeDialog, askConfirm, num,
+         dialogFooter, bootShell, shellHeader, saludo, swapView, countUp } from './core.js';
+
+let cuentas = [], route = { view: 'list', id: null };
+
+const mv    = (c) => Array.isArray(c?.entries) ? c.entries : [];
+/** Saldo = lo que llevo fiado menos lo que he abonado. */
+const deuda = (c) => mv(c).reduce((a, e) => a + (e.type === 'payment' ? -Number(e.amount || 0) : Number(e.amount || 0)), 0);
+const deudaTotal = () => cuentas.reduce((a, c) => a + deuda(c), 0);
+
+function conSaldo(c) {
+    const asc = mv(c).slice().sort((a, b) => new Date(a.date) - new Date(b.date));
+    let r = 0;
+    return asc.map(e => { r += (e.type === 'payment' ? -Number(e.amount || 0) : Number(e.amount || 0)); return { ...e, saldo: r }; });
+}
+function mesActual(c) {
+    const k = monthKey(new Date().toISOString());
+    let sacado = 0, abonado = 0;
+    mv(c).forEach(e => { if (monthKey(e.date) !== k) return; e.type === 'payment' ? abonado += Number(e.amount) : sacado += Number(e.amount); });
+    return { sacado, abonado };
+}
+
+/* ---------------- Navegación ---------------- */
+function go(view, id = null, push = true) {
+    route = { view, id };
+    if (push) history.pushState({ view, id }, '');
+    $('#v-list').classList.toggle('hidden', view !== 'list');
+    $('#v-detail').classList.toggle('hidden', view !== 'detail');
+    window.scrollTo(0, 0);
+    render();
+}
+window.addEventListener('popstate', (e) => {
+    if (document.querySelector('#dialog.open')) return;
+    const s = e.state || { view: 'list' };
+    go(s.view || 'list', s.id || null, false);
+});
+const render = () => route.view === 'list' ? renderList() : renderDetail();
+
+/* ---------------- Lista ---------------- */
+function renderList() {
+    const total = deudaTotal();
+    const conDeuda = cuentas.filter(c => deuda(c) > 0);
+    const mes = cuentas.reduce((a, c) => { const m = mesActual(c); return { sacado: a.sacado + m.sacado, abonado: a.abonado + m.abonado }; }, { sacado: 0, abonado: 0 });
+
+    swapView($('#v-list'), `
+        <div>
+            <p class="sec-title">Lo que debo</p>
+            <section class="gcard">
+                <div class="px-4 pt-4 pb-4">
+                    <p class="tag">Total fiado</p>
+                    <p class="num text-[32px] leading-none mt-2 ${total > 0 ? 'neg' : ''}" id="hero">L 0.00</p>
+                    <p class="text-[12px] mt-2" style="color:var(--ink-3)">
+                        ${conDeuda.length ? `En ${conDeuda.length} lugar${conDeuda.length === 1 ? '' : 'es'} · al ${flong(new Date().toISOString())}` : 'No debes nada. Al día.'}
+                    </p>
+                </div>
+                <div class="kpi">
+                    <div><p class="tag">Saqué este mes</p><p class="num text-[14.5px] mt-1.5 neg">${money(mes.sacado)}</p></div>
+                    <div><p class="tag">Aboné este mes</p><p class="num text-[14.5px] mt-1.5 pos">${money(mes.abonado)}</p></div>
+                    <div><p class="tag">Lugares</p><p class="num text-[14.5px] mt-1.5">${cuentas.length}</p></div>
+                </div>
+            </section>
+        </div>
+
+        <div>
+            <div class="flex items-center justify-between">
+                <p class="sec-title">Mis pulperías</p>
+                <button class="text-[13px] font-semibold mb-2" data-act="nueva" style="color:var(--brand-text)">+ Agregar lugar</button>
+            </div>
+            ${cuentas.length ? `<section class="gcard">${cuentas.map(fila).join('')}</section>` : `
+            <section class="gcard"><div class="px-4 py-5">
+                <h2 class="text-[16px] font-semibold mb-2">Agrega tu pulpería</h2>
+                <p class="text-[13.5px] mb-4" style="color:var(--ink-2);line-height:1.6">
+                    Cada vez que saques algo fiado lo anotas con fecha, hora y monto. El total se va sumando solo,
+                    y cuando pagas registras el abono o cancelas todo de una vez.</p>
+                <button class="btn btn-primary" data-act="nueva">Agregar mi pulpería</button>
+            </div></section>`}
+        </div>
+
+        ${cuentas.length ? `
+        <div>
+            <p class="sec-title">Últimos movimientos</p>
+            <section class="gcard"><div class="px-4 py-4">
+                ${(() => {
+                    const todos = cuentas.flatMap(c => mv(c).map(e => ({ ...e, cid: c.id, cname: cuentas.length > 1 ? c.name : '' })))
+                                         .sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 6);
+                    return todos.length ? `<table class="stmt"><thead><tr><th class="c-date">Fecha</th><th>Detalle</th><th class="c-amt">Monto</th></tr></thead>
+                        <tbody>${todos.map(e => filaMov(e, e.cid, false)).join('')}</tbody></table>`
+                        : `<p class="text-[13.5px] py-3" style="color:var(--ink-3)">Todavía no hay movimientos.</p>`;
+                })()}
+            </div></section>
+        </div>` : ''}
+    `);
+    countUp($('#hero'), total);
+}
+
+function fila(c) {
+    const d = deuda(c);
+    return `<button class="grow" data-act="abrir" data-id="${c.id}">
+        <span class="mono-tile" style="background:${tint('#C41E30', .1)};color:var(--brand-text)">${esc(monogram(c.name))}</span>
+        <span class="flex-1 min-w-0">
+            <span class="block text-[15px] font-semibold truncate">${esc(c.name)}</span>
+            <span class="block text-[12px] mt-0.5" style="color:var(--ink-3)">${d > 0 ? `${mv(c).length} movimiento${mv(c).length === 1 ? '' : 's'}` : 'Sin deuda'}</span>
+        </span>
+        <span class="text-right">
+            <span class="num block text-[15.5px] ${d > 0 ? 'neg' : 'pos'}">${money(d)}</span>
+            <span class="cur block">HNL</span>
+        </span>
+        <svg class="grow-chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+    </button>`;
+}
+
+function filaMov(e, cid, conSal) {
+    const pago = e.type === 'payment';
+    return `<tr class="row-click" data-act="editar" data-id="${cid}" data-eid="${e.id}">
+        <td class="c-date"><span class="date-cell">${fshort(e.date)}</span></td>
+        <td><span class="detail">${esc(e.note || (pago ? 'Abono' : 'Fiado'))}
+            <small>${ftime(e.date)}${e.cname ? ' · ' + esc(e.cname) : ''}</small></span></td>
+        <td class="c-amt"><span class="amt ${pago ? 'pos' : 'neg'}">${pago ? '−' : '+'}${money(e.amount).replace('−','')}</span></td>
+        ${conSal ? `<td class="c-bal"><span class="bal">${money(e.saldo)}</span></td>` : ''}
+    </tr>`;
+}
+
+/* ---------------- Detalle ---------------- */
+function renderDetail() {
+    const c = cuentas.find(x => x.id === route.id);
+    if (!c) return go('list', null, false);
+    const d = deuda(c), m = mesActual(c);
+    const full = conSaldo(c);
+    const neto = {};
+    full.forEach(e => { const k = monthKey(e.date); neto[k] = (neto[k] || 0) + (e.type === 'payment' ? -Number(e.amount) : Number(e.amount)); });
+
+    let filas = '', mesPrev = null;
+    full.slice().reverse().forEach(e => {
+        const k = monthKey(e.date);
+        if (k !== mesPrev) { mesPrev = k; filas += `<tr class="band"><td colspan="3">${monthLabel(k)}</td><td class="c-bal" style="text-align:right">${money(neto[k], { signed: true })}</td></tr>`; }
+        filas += filaMov(e, c.id, true);
+    });
+
+    swapView($('#v-detail'), `
+        <button class="btn btn-quiet btn-sm -ml-3 mb-3" data-act="volver">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14 18-6-6 6-6"/></svg> Mis pulperías
+        </button>
+
+        <div>
+            <section class="gcard">
+                <div class="px-4 pt-4 pb-4">
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <span class="mono-tile" style="background:${tint('#C41E30', .1)};color:var(--brand-text)">${esc(monogram(c.name))}</span>
+                            <div class="min-w-0">
+                                <h1 class="text-[17px] font-semibold truncate">${esc(c.name)}</h1>
+                                <p class="text-[12px]" style="color:var(--ink-3)">${c.owner ? esc(c.owner) + ' · ' : ''}desde el ${flong(c.createdAt)}</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-1 flex-none">
+                            <button class="btn btn-quiet btn-sm" data-act="csv" data-id="${c.id}" aria-label="Exportar" title="Exportar CSV">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 11l4 4 4-4M4 20h16"/></svg>
+                            </button>
+                            <button class="btn btn-quiet btn-sm" data-act="editar-cuenta" data-id="${c.id}" aria-label="Editar" title="Editar">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                            </button>
+                            <button class="btn btn-quiet btn-sm" data-act="borrar-cuenta" data-id="${c.id}" aria-label="Eliminar" style="color:var(--neg)">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <p class="tag mt-5">Debo ahora</p>
+                    <p class="num text-[30px] leading-none mt-2 ${d > 0 ? 'neg' : 'pos'}" id="hero2">L 0.00</p>
+                    ${d <= 0 ? `<p class="st st-ok mt-3"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg> Cuenta al día</p>` : ''}
+                </div>
+                <div class="kpi">
+                    <div><p class="tag">Saqué este mes</p><p class="num text-[14.5px] mt-1.5 neg">${money(m.sacado)}</p></div>
+                    <div><p class="tag">Aboné este mes</p><p class="num text-[14.5px] mt-1.5 pos">${money(m.abonado)}</p></div>
+                    <div><p class="tag">Movimientos</p><p class="num text-[14.5px] mt-1.5">${mv(c).length}</p></div>
+                </div>
+            </section>
+        </div>
+
+        <div class="flex flex-wrap gap-2">
+            <button class="btn btn-primary" data-act="sacar" data-id="${c.id}">Anotar fiado</button>
+            <button class="btn btn-outline" data-act="abonar" data-id="${c.id}" ${d <= 0 ? 'disabled' : ''}>Abonar</button>
+            <button class="btn btn-outline" data-act="cancelar" data-id="${c.id}" ${d <= 0 ? 'disabled' : ''}>Cancelar todo</button>
+        </div>
+
+        <div>
+            <p class="sec-title">Cuenta corriente</p>
+            <section class="gcard"><div class="px-4 py-4">
+                ${full.length ? `<table class="stmt"><thead><tr><th class="c-date">Fecha</th><th>Detalle</th><th class="c-amt">Monto</th><th class="c-bal">Debo</th></tr></thead><tbody>${filas}</tbody></table>
+                    <p class="text-[12px] mt-4" style="color:var(--ink-3)">Toca una fila para corregirla o borrarla.</p>`
+                : `<p class="text-[13.5px] py-3" style="color:var(--ink-3)">Sin movimientos. Anota el primero con el botón de arriba.</p>`}
+            </div></section>
+        </div>
+    `);
+    countUp($('#hero2'), d);
+}
+
+/* ---------------- Formularios ---------------- */
+function dlgCuenta(id = null) {
+    const c = id ? cuentas.find(x => x.id === id) : null;
+    openDialog(`
+    <h2 class="text-[17px] font-semibold mb-5">${c ? 'Editar lugar' : 'Nueva pulpería'}</h2>
+    <div class="space-y-4">
+        <div><label class="label" for="nName">Nombre del lugar</label>
+            <input id="nName" class="field" maxlength="40" placeholder="Pulpería Doña Mari" value="${esc(c?.name || '')}" data-autofocus></div>
+        <div><label class="label" for="nOwner">Dueño o encargado <span class="hint">— opcional</span></label>
+            <input id="nOwner" class="field" maxlength="40" placeholder="Doña Mari" value="${esc(c?.owner || '')}"></div>
+        ${c ? '' : `<div><label class="label" for="nStart">¿Ya debes algo ahí? <span class="hint">— opcional</span></label>
+            <input id="nStart" class="field field-num" type="number" step="0.01" inputmode="decimal" placeholder="0.00"></div>`}
+        ${dialogFooter(c ? 'save-cuenta-edit' : 'save-cuenta', c ? 'Guardar' : 'Agregar', c?.id || '')}
+    </div>`);
+}
+
+function dlgMov(id, tipo) {
+    const c = cuentas.find(x => x.id === id);
+    if (!c) return;
+    const pago = tipo === 'payment', d = deuda(c);
+    openDialog(`
+    <h2 class="text-[17px] font-semibold mb-1">${pago ? 'Abonar a la cuenta' : 'Anotar fiado'}</h2>
+    <p class="text-[13px] mb-5" style="color:var(--ink-3)">${esc(c.name)} · debes <span class="num">${money(d)}</span></p>
+    <div class="space-y-4">
+        <div>
+            <label class="label" for="mAmount">Monto</label>
+            <input id="mAmount" class="field field-num text-[19px] font-semibold" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00" data-autofocus>
+            <div class="flex flex-wrap gap-1.5 mt-2">
+                ${(pago ? [50, 100, 200, 500] : [20, 50, 100, 200]).map(v => `<button type="button" class="chip" data-act="set" data-v="${v}">${v}</button>`).join('')}
+                ${pago && d > 0 ? `<button type="button" class="chip" data-act="set" data-v="${d}">Todo (${money0(d)})</button>` : ''}
+            </div>
+        </div>
+        <div><label class="label" for="mNote">${pago ? 'Nota' : '¿Qué sacaste?'} <span class="hint">— opcional</span></label>
+            <input id="mNote" class="field" maxlength="60" placeholder="${pago ? 'Abono del día de pago' : 'Azúcar, café, pan'}"></div>
+        <div><label class="label" for="mDate">Fecha</label>
+            <input id="mDate" class="field" type="date" value="${todayStr()}" max="${todayStr()}"></div>
+        <div class="flex gap-2.5 justify-end pt-1">
+            <button type="button" class="btn btn-outline" data-act="close-dialog">Cancelar</button>
+            <button type="button" class="btn btn-primary" data-primary data-act="save-mov" data-id="${id}" data-type="${tipo}">${pago ? 'Abonar' : 'Anotar'}</button>
+        </div>
+    </div>`);
+}
+
+function dlgEditar(cid, eid) {
+    const c = cuentas.find(x => x.id === cid);
+    const e = mv(c).find(x => x.id === eid);
+    if (!e) return;
+    openDialog(`
+    <h2 class="text-[17px] font-semibold mb-5">Corregir movimiento</h2>
+    <div class="space-y-4">
+        <div><span class="label">Tipo</span>
+            <div class="flex gap-1.5" id="mType" data-v="${e.type}">
+                <button type="button" class="chip" data-act="tipo" data-type="charge"  aria-pressed="${e.type !== 'payment'}">Fiado</button>
+                <button type="button" class="chip" data-act="tipo" data-type="payment" aria-pressed="${e.type === 'payment'}">Abono</button>
+            </div></div>
+        <div class="grid grid-cols-2 gap-3">
+            <div><label class="label" for="mAmount">Monto</label>
+                <input id="mAmount" class="field field-num" type="number" step="0.01" min="0" value="${e.amount}" data-autofocus></div>
+            <div><label class="label" for="mDate">Fecha</label>
+                <input id="mDate" class="field" type="date" value="${isoToDate(e.date)}"></div>
+        </div>
+        <div><label class="label" for="mNote">Detalle</label>
+            <input id="mNote" class="field" maxlength="60" value="${esc(e.note || '')}"></div>
+        <div class="flex gap-2.5 justify-between pt-1">
+            <button type="button" class="btn btn-danger" data-act="borrar-mov" data-id="${cid}" data-eid="${eid}">Borrar</button>
+            <div class="flex gap-2.5">
+                <button type="button" class="btn btn-outline" data-act="close-dialog">Cancelar</button>
+                <button type="button" class="btn btn-primary" data-primary data-act="update-mov" data-id="${cid}" data-eid="${eid}">Guardar</button>
+            </div>
+        </div>
+    </div>`);
+}
+
+function elegirCuenta(tipo) {
+    const lista = tipo === 'payment' ? cuentas.filter(c => deuda(c) > 0) : cuentas;
+    if (!lista.length) return dlgCuenta();
+    if (lista.length === 1) return dlgMov(lista[0].id, tipo);
+    openDialog(`
+    <h2 class="text-[17px] font-semibold mb-1">${tipo === 'payment' ? 'Abonar' : 'Anotar fiado'}</h2>
+    <p class="text-[13px] mb-4" style="color:var(--ink-3)">¿En cuál lugar?</p>
+    <div style="border:1px solid var(--rule);border-radius:10px;overflow:hidden">
+        ${lista.map(c => `<button class="grow" data-act="pick" data-id="${c.id}" data-type="${tipo}">
+            <span class="mono-tile" style="background:${tint('#C41E30',.1)};color:var(--brand-text)">${esc(monogram(c.name))}</span>
+            <span class="flex-1 min-w-0 text-[14.5px] font-semibold truncate">${esc(c.name)}</span>
+            <span class="num text-[14.5px] ${deuda(c) > 0 ? 'neg' : ''}">${money(deuda(c))}</span>
+        </button>`).join('')}
+    </div>`);
+}
+
+/* ---------------- Escrituras ---------------- */
+async function crearCuenta() {
+    const name = ($('#nName').value || '').trim();
+    if (!name) { notice('Escribe el nombre del lugar', 'neg'); return; }
+    const ini = num('#nStart');
+    try {
+        const ref = await addDoc(collection(db, COL.fiado), {
+            name, owner: ($('#nOwner').value || '').trim(), createdAt: new Date().toISOString(),
+            entries: ini > 0 ? [{ id: uid(), type: 'charge', amount: ini, note: 'Saldo anterior', date: new Date().toISOString() }] : []
+        });
+        closeDialog(); notice('Lugar agregado', 'pos'); go('detail', ref.id);
+    } catch (e) { notice('No se pudo guardar: ' + e.message, 'neg'); }
+}
+
+async function editarCuenta(id) {
+    const name = ($('#nName').value || '').trim();
+    if (!name) { notice('Escribe el nombre del lugar', 'neg'); return; }
+    try { await updateDoc(doc(db, COL.fiado, id), { name, owner: ($('#nOwner').value || '').trim() }); closeDialog(); notice('Actualizado'); }
+    catch (e) { notice('No se pudo guardar: ' + e.message, 'neg'); }
+}
+
+async function guardarMov(id, tipo) {
+    const amount = num('#mAmount');
+    if (amount <= 0) { notice('Escribe un monto mayor a cero', 'neg'); return; }
+    const c = cuentas.find(x => x.id === id);
+    if (tipo === 'payment' && amount > deuda(c)) {
+        const ok = await askConfirm({ title: 'El abono supera lo que debes', danger: true, label: 'Registrar igual',
+            body: `Debes <span class="num">${money(deuda(c))}</span> y vas a abonar <span class="num">${money(amount)}</span>. Quedaría a tu favor <span class="num pos">${money(amount - deuda(c))}</span>.` });
+        if (!ok) return;
+    }
+    try {
+        await updateDoc(doc(db, COL.fiado, id), { entries: arrayUnion({
+            id: uid(), type: tipo, amount, note: ($('#mNote').value || '').trim(), date: dateToISO($('#mDate').value || todayStr()) }) });
+        closeDialog();
+        notice(tipo === 'payment' ? `Abono de ${money(amount)}` : `Fiado de ${money(amount)} anotado`, tipo === 'payment' ? 'pos' : 'neg');
+    } catch (e) { notice('No se pudo guardar: ' + e.message, 'neg'); }
+}
+
+async function actualizarMov(cid, eid) {
+    const amount = num('#mAmount');
+    if (amount <= 0) { notice('Escribe un monto mayor a cero', 'neg'); return; }
+    const c = cuentas.find(x => x.id === cid);
+    const lista = mv(c).map(e => e.id === eid ? { ...e, amount, type: $('#mType').dataset.v, note: ($('#mNote').value || '').trim(), date: dateToISO($('#mDate').value) } : e);
+    try { await updateDoc(doc(db, COL.fiado, cid), { entries: lista }); closeDialog(); notice('Movimiento corregido'); }
+    catch (e) { notice('No se pudo guardar: ' + e.message, 'neg'); }
+}
+
+async function borrarMov(cid, eid) {
+    const ok = await askConfirm({ title: 'Borrar movimiento', danger: true, label: 'Borrar', body: 'El total se recalcula sin este movimiento.' });
+    if (!ok) return;
+    const c = cuentas.find(x => x.id === cid);
+    try { await updateDoc(doc(db, COL.fiado, cid), { entries: mv(c).filter(e => e.id !== eid) }); notice('Borrado'); }
+    catch (e) { notice('No se pudo borrar: ' + e.message, 'neg'); }
+}
+
+async function cancelarTodo(id) {
+    const c = cuentas.find(x => x.id === id);
+    const d = deuda(c);
+    const ok = await askConfirm({ title: 'Cancelar toda la cuenta', label: 'Sí, ya pagué todo',
+        body: `Se registra un abono de <span class="num">${money(d)}</span> y la cuenta de <b>${esc(c.name)}</b> queda en cero. Los movimientos anteriores se conservan.` });
+    if (!ok) return;
+    try {
+        await updateDoc(doc(db, COL.fiado, id), { entries: arrayUnion({ id: uid(), type: 'payment', amount: d, note: 'Cancelación total', date: new Date().toISOString() }) });
+        notice('Cuenta cancelada. Quedaste al día.', 'pos');
+    } catch (e) { notice('No se pudo guardar: ' + e.message, 'neg'); }
+}
+
+async function borrarCuenta(id) {
+    const c = cuentas.find(x => x.id === id);
+    const ok = await askConfirm({ title: 'Eliminar lugar', danger: true, key: true, label: 'Eliminar',
+        body: `Se borra <b>${esc(c.name)}</b> con sus ${mv(c).length} movimientos. No se puede deshacer.` });
+    if (!ok) return;
+    try { await deleteDoc(doc(db, COL.fiado, id)); go('list'); notice('Lugar eliminado'); }
+    catch (e) { notice('No se pudo eliminar: ' + e.message, 'neg'); }
+}
+
+function exportar(id) {
+    const c = cuentas.find(x => x.id === id);
+    const q = (s) => `"${String(s ?? '').replace(/"/g, '""')}"`;
+    const rows = [['Fecha', 'Hora', 'Tipo', 'Detalle', 'Monto', 'Debo']];
+    conSaldo(c).forEach(e => rows.push([isoToDate(e.date), ftime(e.date), e.type === 'payment' ? 'Abono' : 'Fiado',
+        e.note || '', (e.type === 'payment' ? -Number(e.amount) : Number(e.amount)).toFixed(2), e.saldo.toFixed(2)]));
+    const url = URL.createObjectURL(new Blob(['\uFEFF' + rows.map(r => r.map(q).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8;' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = `fiado-${c.name.replace(/[^\w\s-]/g, '').trim()}-${todayStr()}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    notice('Archivo descargado');
+}
+
+/* ---------------- Eventos ---------------- */
+document.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-act]');
+    if (!el || el.disabled) return;
+    const { act, id, eid, type, v } = el.dataset;
+    switch (act) {
+        case 'nueva':          dlgCuenta(); break;
+        case 'abrir':          go('detail', id); break;
+        case 'volver':         go('list'); break;
+        case 'sacar':          dlgMov(id, 'charge'); break;
+        case 'abonar':         dlgMov(id, 'payment'); break;
+        case 'pick':           dlgMov(id, type); break;
+        case 'cancelar':       cancelarTodo(id); break;
+        case 'editar':         dlgEditar(id, eid); break;
+        case 'editar-cuenta':  dlgCuenta(id); break;
+        case 'borrar-cuenta':  borrarCuenta(id); break;
+        case 'csv':            exportar(id); break;
+        case 'save-cuenta':      crearCuenta(); break;
+        case 'save-cuenta-edit': editarCuenta(id); break;
+        case 'save-mov':         guardarMov(id, type); break;
+        case 'update-mov':       actualizarMov(id, eid); break;
+        case 'borrar-mov':       closeDialog(); borrarMov(id, eid); break;
+        case 'set':  $('#mAmount').value = v; $('#mAmount').focus(); break;
+        case 'tipo':
+            $('#mType').dataset.v = type;
+            $('#mType').querySelectorAll('.chip').forEach(b => b.setAttribute('aria-pressed', b.dataset.type === type));
+            break;
+    }
+});
+
+/* ---------------- Arranque ---------------- */
+$('#shell').innerHTML = shellHeader('Fiado');
+let listo = false;
+function mostrar() {
+    if (listo) return;
+    listo = true;
+    $('#boot').classList.add('hidden');
+    $('#app').classList.remove('hidden');
+    saludo();
+    history.replaceState({ view: 'list', id: null }, '');
+    render();
+}
+bootShell({ onReady: () => {
+    onSnapshot(query(collection(db, COL.fiado)), (snap) => {
+        cuentas = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+        mostrar(); render();
+    }, (err) => { mostrar(); notice('Sin conexión con la nube', 'neg'); console.error(err); });
+}});
+</script>
+</body>
+</html>
