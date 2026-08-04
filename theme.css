@@ -455,3 +455,69 @@ thead th { color: var(--ink-3) !important; font-weight: 600; }
 .tag-in  { color: var(--pos); }
 .tag-out { color: var(--neg); }
 .hidden { display: none !important; }
+
+/* ============================================================
+   Realce visual
+   ============================================================ */
+.hero {
+  position: relative; overflow: hidden;
+  background:
+    radial-gradient(120% 90% at 8% -20%, var(--brand-soft) 0%, transparent 58%),
+    radial-gradient(90% 80% at 105% 0%, var(--pos-soft) 0%, transparent 55%),
+    var(--sheet);
+}
+[data-theme="dark"] .hero {
+  background:
+    radial-gradient(120% 90% at 8% -20%, rgba(196,30,48,.16) 0%, transparent 58%),
+    radial-gradient(90% 80% at 105% 0%, rgba(28,101,68,.14) 0%, transparent 55%),
+    var(--sheet);
+}
+.hero::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(180deg, rgba(255,255,255,.5), transparent 40%);
+  mix-blend-mode: overlay;
+}
+
+/* Barra de composición del patrimonio */
+.stack { display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: var(--rule); }
+.stack > i { display: block; height: 100%; transition: width .9s cubic-bezier(.22,1,.36,1); position: relative; }
+.stack > i + i { box-shadow: -1px 0 0 var(--sheet); }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.legend > span { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-2); }
+.legend i { width: 9px; height: 9px; border-radius: 3px; flex: none; }
+
+/* Insignia de ingreso pasivo */
+.passive {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 999px;
+  background: var(--pos-soft); color: var(--pos);
+  font-size: 12px; font-weight: 700;
+}
+.passive svg { flex: none; }
+
+/* Realce de tarjetas */
+.tile-ico { box-shadow: inset 0 0 0 1px rgba(0,0,0,.04); }
+.tile::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(160deg, rgba(255,255,255,.55), transparent 42%);
+  opacity: .6;
+}
+[data-theme="dark"] .tile::after { background: linear-gradient(160deg, rgba(255,255,255,.05), transparent 42%); }
+.tile > * { position: relative; z-index: 1; }
+.tile-badge {
+  position: absolute; top: 12px; right: 12px; z-index: 2;
+  padding: 2px 7px; border-radius: 999px; font-size: 10px; font-weight: 700;
+  font-family: var(--f-mono); letter-spacing: .03em;
+}
+
+/* Anillo con brillo */
+.ring .fg { filter: drop-shadow(0 0 6px currentColor); opacity: .96; }
+
+/* Fila destacada */
+.grow-hi { background: linear-gradient(90deg, var(--brand-soft), transparent 55%); }
+[data-theme="dark"] .grow-hi { background: linear-gradient(90deg, rgba(196,30,48,.13), transparent 55%); }
+
+/* Micro barras de tendencia */
+.spark { display: flex; align-items: flex-end; gap: 2px; height: 22px; }
+.spark > i { flex: 1; background: currentColor; opacity: .3; border-radius: 1.5px; min-height: 2px; }
+.spark > i.on { opacity: 1; }

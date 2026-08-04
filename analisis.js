@@ -33,14 +33,53 @@ export function analizar(D) {
 
     const deudaTotal = deudaFiado + deudaCuotas;
 
+    /* --- Cartera de préstamos (dinero que me deben) --- */
+    const perMes = (f) => f === 'quincenal' ? 2 : 4.33;   // periodos por mes
+    const vivos = prestamos.filter(p => Number(p.currentCapital || 0) > 0);
+    const capitalPrestado = vivos.reduce((a, p) => a + Number(p.currentCapital || 0), 0);
+
+    let interesMensual = 0, cuotasVencidasP = 0, cuotasPagadasP = 0, capitalEnMora = 0, proxCobro = 0;
+    vivos.forEach(p => {
+        const cap = Number(p.currentCapital || 0);
+        const tasa = Number(p.interestRate || 0);
+        const base = (cap * tasa) / 100;                  // interés de un periodo
+        interesMensual += base * perMes(p.frequency);
+
+        const qs = Array.isArray(p.quotas) ? p.quotas : [];
+        const pend = qs.filter(q => q.status === 'pending');
+        if (pend.length) proxCobro += base * (Number(pend[0].interestMultiplier) || 1);
+
+        let venc = 0;
+        qs.forEach(q => {
+            if (q.status === 'paid') { cuotasPagadasP++; return; }
+            if (diasEntre(new Date(), new Date(q.date + 'T12:00:00')) < 0) { venc++; cuotasVencidasP++; }
+        });
+        if (venc > 0) capitalEnMora += cap;
+    });
+
+    const totalCuotasP = cuotasPagadasP + cuotasVencidasP;
+    /* Salud de cobro: 1 = todos pagan puntual, 0 = nadie paga */
+    const saludCobro = totalCuotasP === 0 ? (vivos.length ? 0.7 : 1) : cuotasPagadasP / totalCuotasP;
+    /* Concentración: qué tanto de la cartera está en un solo deudor */
+    const mayor = vivos.length ? Math.max(...vivos.map(p => Number(p.currentCapital || 0))) : 0;
+    const concentracion = capitalPrestado > 0 ? mayor / capitalPrestado : 0;
+    const hayCartera = vivos.length > 0;
+
+    /* El capital prestado NO es dinero disponible: no se puede usar mañana
+       en una emergencia y hay riesgo de que no lo devuelvan. Para el colchón
+       cuenta con descuento, ajustado por qué tan bien le están pagando. */
+    const factorLiquidez = 0.35 * saludCobro;
+    const ahorroEfectivo = ahorroTotal + capitalPrestado * factorLiquidez;
+
     /* --- Presupuesto --- */
     const aMes = (m, f) => { const v = Number(m) || 0; return f === 'semanal' ? v * 4.33 : f === 'quincenal' ? v * 2 : f === 'anual' ? v / 12 : v; };
-    const ingresos = (presupuesto.ingresos || []).reduce((a, i) => a + aMes(i.amount, i.freq), 0);
+    const ingresosDeclarados = (presupuesto.ingresos || []).reduce((a, i) => a + aMes(i.amount, i.freq), 0);
     const gastos   = (presupuesto.gastos   || []).reduce((a, g) => a + aMes(g.amount, g.freq), 0);
+    const ingresos = ingresosDeclarados + interesMensual;   // el interés es ingreso pasivo real
     const disponible = ingresos - gastos;
     const empleo = presupuesto.empleo || 'independiente';
     const inestable = empleo === 'independiente' || empleo === 'sin';
-    const hayPresupuesto = ingresos > 0 || gastos > 0;
+    const hayPresupuesto = ingresosDeclarados > 0 || gastos > 0 || interesMensual > 0;
 
     /* --- Cuotas atrasadas --- */
     let vencidas = 0, aTiempo = 0, totalMarcadas = 0;
@@ -66,7 +105,8 @@ export function analizar(D) {
 
     /* --- Colchón: meses que aguantaría sin ingresos --- */
     const gastoRef = gastos > 0 ? gastos : (cuotaMes > 0 ? cuotaMes * 2 : 0);
-    const colchon = gastoRef > 0 ? ahorroTotal / gastoRef : (ahorroTotal > 0 ? 6 : 0);
+    const colchonLiquido = gastoRef > 0 ? ahorroTotal / gastoRef : 0;
+    const colchon = gastoRef > 0 ? ahorroEfectivo / gastoRef : (ahorroEfectivo > 0 ? 6 : 0);
 
     /* ============ Puntuación ============ */
     const areas = [];
@@ -76,9 +116,10 @@ export function analizar(D) {
     areas.push({
         id: 'colchon', nombre: 'Colchón de emergencia', peso: 25,
         puntos: escala(colchon, 0, metaColchon),
-        detalle: gastoRef > 0
-            ? `Tu ahorro cubre ${colchon.toFixed(1)} ${colchon === 1 ? 'mes' : 'meses'} de gastos. La meta para tu caso es ${metaColchon}.`
-            : 'Agrega tus gastos en el módulo de ingresos y gastos para medir esto.',
+        detalle: gastoRef === 0 ? 'Agrega tus gastos en el módulo de ingresos y gastos para medir esto.'
+            : hayCartera
+                ? `Cubres ${colchon.toFixed(1)} de ${metaColchon} meses. En efectivo son ${colchonLiquido.toFixed(1)}: lo prestado suma poco aquí porque no lo tienes a mano.`
+                : `Tu ahorro cubre ${colchon.toFixed(1)} ${colchon === 1 ? 'mes' : 'meses'} de gastos. La meta para tu caso es ${metaColchon}.`,
         dato: colchon
     });
 
@@ -125,6 +166,29 @@ export function analizar(D) {
         dato: verdes
     });
 
+    // 6. Cartera de préstamos. Solo aparece si prestas dinero.
+    if (hayCartera) {
+        const pCobro = saludCobro * 100;
+        const pConc  = escala(concentracion, 1, 0.34);   // repartido entre 3+ deudores = ideal
+        const pMora  = capitalPrestado > 0 ? escala(capitalEnMora / capitalPrestado, 1, 0) : 100;
+        areas.push({
+            id: 'cartera', nombre: 'Cartera de préstamos', peso: 15,
+            puntos: cl(pCobro * 0.5 + pMora * 0.3 + pConc * 0.2),
+            detalle: cuotasVencidasP > 0
+                ? `${cuotasVencidasP} cuota${cuotasVencidasP === 1 ? '' : 's'} sin cobrar. Hay ${money0(capitalEnMora)} en manos de quien no está pagando al día.`
+                : concentracion > 0.7 && vivos.length > 1
+                    ? `Te pagan puntual, pero el ${Math.round(concentracion * 100)}% de tu capital está en un solo deudor.`
+                    : vivos.length === 1
+                        ? `Todo tu capital prestado está en un solo deudor. Si falla, falla todo.`
+                        : `${vivos.length} préstamos activos, al día. Generan ${money0(interesMensual)} al mes.`,
+            dato: capitalPrestado
+        });
+        // Se reajustan los pesos para que sigan sumando 100
+        const otros = areas.filter(a => a.id !== 'cartera');
+        const sobra = 85 / otros.reduce((a, x) => a + x.peso, 0);
+        otros.forEach(a => a.peso = Math.round(a.peso * sobra * 10) / 10);
+    }
+
     const total = Math.round(areas.reduce((a, x) => a + x.puntos * x.peso, 0) / areas.reduce((a, x) => a + x.peso, 0));
 
     /* ============ Nivel ============ */
@@ -155,12 +219,27 @@ export function analizar(D) {
     if (ahorroTotal > 0 && metas.length === 0)
         rec.push({ p: 4, t: 'Ponle nombre a tu ahorro', d: 'Una meta concreta hace más fácil no tocar el dinero. Define para qué es lo que estás juntando.', link: 'ahorro.html' });
 
+    if (cuotasVencidasP > 0)
+        rec.push({ p: 1, t: 'Tienes cobros atrasados', d: `${cuotasVencidasP} cuota${cuotasVencidasP === 1 ? '' : 's'} de tus préstamos pasó de fecha, con ${money0(capitalEnMora)} de capital comprometido. Cobrar hoy es más barato que cobrar en tres meses.`, link: 'presta.html' });
+    if (hayCartera && vivos.length === 1 && capitalPrestado > ahorroTotal)
+        rec.push({ p: 2, t: 'Todo el capital en un solo deudor', d: `Tienes ${money0(capitalPrestado)} prestados a una sola persona, más de lo que tienes ahorrado. Si esa persona deja de pagar, te quedas sin nada disponible.`, link: 'presta.html' });
+    else if (hayCartera && concentracion > 0.7 && vivos.length > 1)
+        rec.push({ p: 3, t: 'Reparte más tu capital', d: `El ${Math.round(concentracion * 100)}% de lo que prestas está en un solo deudor. Repartirlo entre más personas baja el riesgo sin bajar el interés.`, link: 'presta.html' });
+    if (hayCartera && colchonLiquido < 1 && gastoRef > 0)
+        rec.push({ p: 1, t: 'Prestas más de lo que tienes a mano', d: `Tienes ${money0(capitalPrestado)} en la calle pero menos de un mes de gastos en efectivo. Si surge una emergencia no vas a poder esperar a que te paguen.`, link: 'ahorro.html' });
+    if (hayCartera && interesMensual > 0 && gastos > 0 && interesMensual >= gastos)
+        rec.push({ p: 4, t: 'El interés ya cubre tus gastos', d: `Los ${money0(interesMensual)} mensuales que generan tus préstamos alcanzan para tus gastos del mes. Eso es independencia, cuídala cobrando puntual.`, link: 'presta.html' });
+
     rec.sort((a, b) => a.p - b.p);
 
     return {
         total, nivel, areas, rec: rec.slice(0, 5),
-        cifras: { ahorroTotal, deudaTotal, deudaFiado, deudaCuotas, cuotaMes, ingresos, gastos, disponible,
-                  colchon, metaColchon, vencidas, verdes, mesesRegistrados: meses.length, empleo, patrimonio: ahorroTotal - deudaTotal }
+        cifras: { ahorroTotal, ahorroEfectivo, deudaTotal, deudaFiado, deudaCuotas, cuotaMes,
+                  ingresos, ingresosDeclarados, gastos, disponible,
+                  colchon, colchonLiquido, metaColchon, vencidas, verdes, mesesRegistrados: meses.length, empleo,
+                  capitalPrestado, interesMensual, proxCobro, cuotasVencidasP, capitalEnMora,
+                  concentracion, saludCobro, nPrestamos: vivos.length, hayCartera,
+                  patrimonio: ahorroTotal + capitalPrestado - deudaTotal }
     };
 }
 
@@ -175,11 +254,16 @@ export function resumenParaIA(r) {
         gastos_mensuales: Math.round(c.gastos),
         disponible_mensual: Math.round(c.disponible),
         ahorro_total: Math.round(c.ahorroTotal),
+        capital_prestado_a_terceros: Math.round(c.capitalPrestado),
+        interes_mensual_por_prestamos: Math.round(c.interesMensual),
+        cuotas_de_prestamos_sin_cobrar: c.cuotasVencidasP,
+        numero_de_deudores: c.nPrestamos,
         deuda_fiado_pulperia: Math.round(c.deudaFiado),
         deuda_cuotas_financiadas: Math.round(c.deudaCuotas),
         cuotas_mensuales: Math.round(c.cuotaMes),
         cuotas_vencidas: c.vencidas,
-        meses_de_colchon: Number(c.colchon.toFixed(1)),
+        meses_de_colchon_total: Number(c.colchon.toFixed(1)),
+        meses_de_colchon_solo_efectivo: Number(c.colchonLiquido.toFixed(1)),
         meses_registrados: c.mesesRegistrados,
         meses_cerrados_en_positivo: c.verdes,
         puntuacion_calculada: r.total

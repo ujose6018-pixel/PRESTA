@@ -99,11 +99,7 @@ function alertasCuotas() {
     return out.sort((a, b) => a.dias - b.dias);
 }
 
-const prestadoAfuera = () => D.prestamos.reduce((a, p) => {
-    const cap = Number(p.amount || p.capital || p.monto || 0);
-    const abonos = (p.payments || p.abonos || []).reduce((x, y) => x + Number(y.capital || y.amount || 0), 0);
-    return a + Math.max(0, cap - abonos);
-}, 0);
+/* El motor de análisis ya calcula la cartera; aquí solo se muestra. */
 
 const textoDias = (d) => d < 0 ? `vencida hace ${Math.abs(d)} d` : d === 0 ? 'vence hoy' : d === 1 ? 'mañana' : `en ${d} días`;
 
@@ -112,7 +108,7 @@ function render() {
     const R = analizar(D);
     const c = R.cifras;
     const al = alertasCuotas();
-    const ahorro = totalAhorro(), fiadoD = deudaFiado(), finD = restaFinanciado(), prest = prestadoAfuera();
+    const ahorro = totalAhorro(), fiadoD = deudaFiado(), finD = restaFinanciado();
 
     const ICO = {
         ahorro:  '<path d="M3 6h18v13H3z"/><path d="M3 10h18M7 15h3"/>',
@@ -125,6 +121,7 @@ function render() {
     };
     const tile = (href, ico, name, val, sub, col = 'var(--brand-text)', bg = 'var(--brand-soft)', alerta = false) => `
         <a href="${href}" class="tile" ${alerta ? 'style="border-color:var(--neg)"' : ''}>
+            ${alerta ? `<span class="tile-badge" style="background:var(--neg);color:#fff">!</span>` : ''}
             <span class="tile-ico" style="background:${bg}">
                 <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="${col}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ico}</svg>
             </span>
@@ -134,6 +131,21 @@ function render() {
         </a>`;
 
     swapView($('#v'), `
+        ${c.cuotasVencidasP > 0 ? `
+        <div>
+            <p class="sec-title">Cobros atrasados</p>
+            <section class="gcard">
+                <a class="grow grow-hi" href="presta.html" style="text-decoration:none;color:inherit;border-left:3px solid var(--accent)">
+                    <span class="mono-tile" style="background:var(--brand-soft);color:var(--accent)"><span class="dot-pulse"></span></span>
+                    <span class="flex-1 min-w-0">
+                        <span class="block text-[14.5px] font-semibold">${c.cuotasVencidasP} cuota${c.cuotasVencidasP === 1 ? '' : 's'} sin cobrar</span>
+                        <span class="block text-[12px] mt-0.5" style="color:var(--ink-3)">${money0(c.capitalEnMora)} con quien no paga al día</span>
+                    </span>
+                    <svg class="grow-chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+                </a>
+            </section>
+        </div>` : ''}
+
         ${al.length ? `
         <div>
             <p class="sec-title">Pendiente de pago</p>
@@ -151,15 +163,40 @@ function render() {
 
         <div>
             <p class="sec-title">Mi posición</p>
-            <section class="gcard">
+            <section class="gcard hero">
                 <div class="px-4 pt-4 pb-4">
                     <p class="tag">Patrimonio neto</p>
                     <p class="num text-[32px] leading-none mt-2 ${c.patrimonio < 0 ? 'neg' : ''}" id="hero">L 0.00</p>
-                    <p class="text-[12px] mt-2" style="color:var(--ink-3)">Lo que tienes menos lo que debes</p>
+                    <p class="text-[12px] mt-2 mb-4" style="color:var(--ink-3)">Efectivo más lo que me deben, menos lo que debo</p>
+                    ${(() => {
+                        const T = ahorro + c.capitalPrestado + c.deudaTotal;
+                        if (T <= 0) return '';
+                        const w = (v) => (v / T * 100).toFixed(1) + '%';
+                        return `<div class="stack mb-2.5">
+                            ${ahorro > 0 ? `<i style="width:${w(ahorro)};background:var(--pos)"></i>` : ''}
+                            ${c.capitalPrestado > 0 ? `<i style="width:${w(c.capitalPrestado)};background:var(--accent)"></i>` : ''}
+                            ${c.deudaTotal > 0 ? `<i style="width:${w(c.deudaTotal)};background:var(--neg)"></i>` : ''}
+                        </div>
+                        <div class="legend">
+                            ${ahorro > 0 ? `<span><i style="background:var(--pos)"></i>Efectivo ${money0(ahorro)}</span>` : ''}
+                            ${c.capitalPrestado > 0 ? `<span><i style="background:var(--accent)"></i>Prestado ${money0(c.capitalPrestado)}</span>` : ''}
+                            ${c.deudaTotal > 0 ? `<span><i style="background:var(--neg)"></i>Debo ${money0(c.deudaTotal)}</span>` : ''}
+                        </div>`;
+                    })()}
+                    ${c.interesMensual > 0 ? `
+                    <div class="mt-4 pt-3.5" style="border-top:1px solid var(--rule)">
+                        <span class="passive">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                            ${money0(c.interesMensual)} al mes en intereses
+                        </span>
+                        <p class="text-[12px] mt-2" style="color:var(--ink-3)">
+                            Ingreso pasivo de ${c.nPrestamos} préstamo${c.nPrestamos === 1 ? '' : 's'}${c.gastos > 0 ? ` · cubre el ${Math.round(Math.min(999, c.interesMensual / c.gastos * 100))}% de tus gastos` : ''}
+                        </p>
+                    </div>` : ''}
                 </div>
                 <div class="kpi">
-                    <div><p class="tag">Tengo</p><p class="num text-[14.5px] mt-1.5 pos">${money(ahorro)}</p></div>
-                    <div><p class="tag">Debo</p><p class="num text-[14.5px] mt-1.5 ${c.deudaTotal > 0 ? 'neg' : ''}">${money(c.deudaTotal)}</p></div>
+                    <div><p class="tag">Tengo a mano</p><p class="num text-[14.5px] mt-1.5 pos">${money(ahorro)}</p></div>
+                    <div><p class="tag">Me deben</p><p class="num text-[14.5px] mt-1.5" style="color:var(--accent)">${money(c.capitalPrestado)}</p></div>
                     <div><p class="tag">Salud</p><p class="num text-[14.5px] mt-1.5">${R.total}/100</p></div>
                 </div>
                 <a class="gfoot flex items-center justify-between" href="analisis.html" style="text-decoration:none;color:inherit">
@@ -184,8 +221,9 @@ function render() {
                        c.ingresos || c.gastos ? money0(c.disponible) : '—',
                        c.ingresos || c.gastos ? 'me queda al mes' : 'Sin registrar',
                        c.disponible >= 0 ? 'var(--pos)' : 'var(--neg)', c.disponible >= 0 ? 'var(--pos-soft)' : 'var(--neg-soft)')}
-                ${tile('presta.html', ICO.presta, 'Préstamos', prest > 0 ? money0(prest) : '—',
-                       prest > 0 ? 'me deben' : 'Sin préstamos')}
+                ${tile('presta.html', ICO.presta, 'Préstamos', c.capitalPrestado > 0 ? money0(c.capitalPrestado) : '—',
+                       c.capitalPrestado > 0 ? `+${money0(c.interesMensual)}/mes de interés` : 'Sin préstamos',
+                       'var(--accent)', 'var(--brand-soft)', c.cuotasVencidasP > 0)}
                 ${tile('ronda.html', ICO.ronda, 'Rondas', D.rondas.length ? String(D.rondas.length) : '—',
                        D.rondas.length ? `ronda${D.rondas.length === 1 ? '' : 's'} activa${D.rondas.length === 1 ? '' : 's'}` : 'Sin rondas')}
             </div>
@@ -219,8 +257,10 @@ function render() {
         </div>
     `);
     countUp($('#hero'), c.patrimonio);
-    $('#greet-sub').textContent = al.length
-        ? `Tienes ${al.length} cuota${al.length === 1 ? '' : 's'} por pagar`
+    $('#greet-sub').textContent =
+          c.cuotasVencidasP > 0 ? `${c.cuotasVencidasP} cuota${c.cuotasVencidasP === 1 ? '' : 's'} sin cobrar`
+        : al.length ? `Tienes ${al.length} cuota${al.length === 1 ? '' : 's'} por pagar`
+        : c.interesMensual > 0 ? `Ganas ${money0(c.interesMensual)} al mes en intereses`
         : c.deudaTotal > 0 ? `Debes ${money0(c.deudaTotal)} en total` : 'Todo al día';
 }
 

@@ -43,7 +43,23 @@ colchón en vez de 3.
 
 Se calcula en el teléfono, sin internet y sin costo. Puntúa 0–100 combinando cinco áreas:
 colchón de emergencia (25%), nivel de deuda (25%), puntualidad en pagos (20%), capacidad de
-ahorro (20%) y constancia en el registro (10%).
+ahorro (20%) y constancia en el registro (10%). Si hay préstamos activos aparece una sexta área,
+cartera de préstamos (15%), y los pesos de las demás se reajustan para seguir sumando 100.
+
+### Cómo entra el dinero prestado
+
+El capital que te deben es un **activo**, no un pasivo — un pasivo es lo que tú debes. Entra así:
+
+- **Patrimonio neto**: cuenta completo. `efectivo + capital prestado − deudas`.
+- **Colchón de emergencia**: cuenta solo al 35%, y ese porcentaje baja si hay cuotas sin cobrar.
+  El motivo es que no puedes usar mañana un dinero que está en la calle. La página muestra
+  el colchón total y el colchón solo en efectivo por separado.
+- **Ingresos**: el interés esperado sí cuenta completo como ingreso pasivo mensual. Se normaliza
+  según la frecuencia del préstamo (semanal ×4.33, quincenal ×2).
+
+El área de cartera puntúa tres cosas: qué proporción de cuotas se pagan (50%), cuánto capital está
+en manos de alguien atrasado (30%) y qué tan repartido está entre deudores (20%). Prestar todo a
+una sola persona baja la nota aunque pague puntual.
 
 **Capa de IA opcional.** Con una llave de Gemini se genera además una lectura escrita. La llave se
 guarda en `localStorage`, nunca en el repositorio. Solo se envían totales redondeados: ningún nombre

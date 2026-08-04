@@ -65,7 +65,7 @@ function render() {
     swapView($('#v'), `
         <div>
             <p class="sec-title">Evaluación general</p>
-            <section class="gcard">
+            <section class="gcard hero">
                 <div class="px-4 pt-6 pb-5 text-center">
                     <div class="relative inline-grid place-items-center mb-4">
                         <svg class="ring" width="130" height="130" viewBox="0 0 120 120">
@@ -82,9 +82,26 @@ function render() {
                     <h2 class="text-[19px] font-semibold">${esc(R.nivel.txt)}</h2>
                     <p class="text-[13.5px] mt-1.5 max-w-sm mx-auto" style="color:var(--ink-2);line-height:1.6">${esc(R.nivel.desc)}</p>
                 </div>
+                ${(() => {
+                    const T = c.ahorroTotal + c.capitalPrestado + c.deudaTotal;
+                    if (T <= 0) return '';
+                    const w = (v) => (v / T * 100).toFixed(1) + '%';
+                    return `<div class="px-4 pb-5">
+                        <div class="stack mb-2.5">
+                            ${c.ahorroTotal > 0 ? `<i style="width:${w(c.ahorroTotal)};background:var(--pos)"></i>` : ''}
+                            ${c.capitalPrestado > 0 ? `<i style="width:${w(c.capitalPrestado)};background:var(--accent)"></i>` : ''}
+                            ${c.deudaTotal > 0 ? `<i style="width:${w(c.deudaTotal)};background:var(--neg)"></i>` : ''}
+                        </div>
+                        <div class="legend">
+                            ${c.ahorroTotal > 0 ? `<span><i style="background:var(--pos)"></i>Efectivo ${money0(c.ahorroTotal)}</span>` : ''}
+                            ${c.capitalPrestado > 0 ? `<span><i style="background:var(--accent)"></i>Me deben ${money0(c.capitalPrestado)}</span>` : ''}
+                            ${c.deudaTotal > 0 ? `<span><i style="background:var(--neg)"></i>Debo ${money0(c.deudaTotal)}</span>` : ''}
+                        </div>
+                    </div>`;
+                })()}
                 <div class="kpi">
                     <div><p class="tag">Patrimonio</p><p class="num text-[14.5px] mt-1.5 ${c.patrimonio >= 0 ? '' : 'neg'}">${money(c.patrimonio)}</p></div>
-                    <div><p class="tag">Ahorro</p><p class="num text-[14.5px] mt-1.5 pos">${money(c.ahorroTotal)}</p></div>
+                    <div><p class="tag">${c.hayCartera ? 'Interés al mes' : 'Ahorro'}</p><p class="num text-[14.5px] mt-1.5 pos">${money(c.hayCartera ? c.interesMensual : c.ahorroTotal)}</p></div>
                     <div><p class="tag">Deuda</p><p class="num text-[14.5px] mt-1.5 ${c.deudaTotal > 0 ? 'neg' : ''}">${money(c.deudaTotal)}</p></div>
                 </div>
             </section>
@@ -107,6 +124,39 @@ function render() {
                 }).join('')}
             </section>
         </div>
+
+        ${c.hayCartera ? `
+        <div>
+            <p class="sec-title">Mi cartera de préstamos</p>
+            <section class="gcard">
+                <div class="px-4 pt-4 pb-4">
+                    <div class="flex items-start justify-between gap-3 mb-4">
+                        <div>
+                            <p class="tag">Capital en la calle</p>
+                            <p class="num text-[24px] leading-none mt-1.5" style="color:var(--accent)">${money(c.capitalPrestado)}</p>
+                        </div>
+                        <span class="passive">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                            ${money0(c.interesMensual)}/mes
+                        </span>
+                    </div>
+                    <div class="space-y-2.5 text-[13px]" style="color:var(--ink-2)">
+                        <div class="flex justify-between"><span>Deudores activos</span><span class="num">${c.nPrestamos}</span></div>
+                        <div class="flex justify-between"><span>Cobro más próximo</span><span class="num">${money(c.proxCobro)}</span></div>
+                        <div class="flex justify-between"><span>Cuotas sin cobrar</span><span class="num ${c.cuotasVencidasP > 0 ? 'neg' : 'pos'}">${c.cuotasVencidasP}</span></div>
+                        <div class="flex justify-between"><span>Concentración mayor deudor</span><span class="num ${c.concentracion > 0.7 ? 'neg' : ''}">${Math.round(c.concentracion * 100)}%</span></div>
+                        <div class="flex justify-between"><span>Rendimiento sobre capital</span><span class="num pos">${c.capitalPrestado > 0 ? (c.interesMensual / c.capitalPrestado * 100).toFixed(1) : 0}% mensual</span></div>
+                    </div>
+                </div>
+                <div class="gfoot">
+                    <p class="text-[12.5px]" style="color:var(--ink-2);line-height:1.6">
+                        <b>Ojo con esto:</b> lo prestado cuenta en tu patrimonio, pero para el colchón de emergencia
+                        solo suma en parte — no puedes usarlo mañana si algo pasa. En efectivo tienes
+                        <span class="num">${c.colchonLiquido.toFixed(1)}</span> ${c.colchonLiquido === 1 ? 'mes' : 'meses'} de gastos.
+                    </p>
+                </div>
+            </section>
+        </div>` : ''}
 
         ${R.rec.length ? `<div>
             <p class="sec-title">Qué hacer ahora</p>
@@ -145,12 +195,16 @@ function render() {
         <div>
             <p class="sec-title">De dónde salen los números</p>
             <section class="gcard"><div class="px-4 py-4 space-y-2.5 text-[13px]" style="color:var(--ink-2)">
-                <div class="flex justify-between"><span>Ingresos del mes</span><span class="num">${money(c.ingresos)}</span></div>
+                <div class="flex justify-between"><span>Ingresos declarados</span><span class="num">${money(c.ingresosDeclarados)}</span></div>
+                ${c.interesMensual > 0 ? `<div class="flex justify-between"><span>Interés de préstamos</span><span class="num pos">+${money(c.interesMensual)}</span></div>
+                <div class="flex justify-between" style="border-top:1px solid var(--rule);padding-top:8px"><span><b>Ingreso total</b></span><span class="num"><b>${money(c.ingresos)}</b></span></div>` : ''}
                 <div class="flex justify-between"><span>Gastos del mes</span><span class="num">${money(c.gastos)}</span></div>
                 <div class="flex justify-between"><span>Cuotas mensuales</span><span class="num">${money(c.cuotaMes)}</span></div>
                 <div class="flex justify-between"><span>Debo en pulpería</span><span class="num">${money(c.deudaFiado)}</span></div>
                 <div class="flex justify-between"><span>Debo en cuotas</span><span class="num">${money(c.deudaCuotas)}</span></div>
-                <div class="flex justify-between"><span>Meses de colchón</span><span class="num">${c.colchon.toFixed(1)} de ${c.metaColchon}</span></div>
+                ${c.capitalPrestado > 0 ? `<div class="flex justify-between"><span>Capital prestado</span><span class="num" style="color:var(--accent)">${money(c.capitalPrestado)}</span></div>` : ''}
+                <div class="flex justify-between"><span>Colchón total</span><span class="num">${c.colchon.toFixed(1)} de ${c.metaColchon} meses</span></div>
+                ${c.hayCartera ? `<div class="flex justify-between"><span>Colchón en efectivo</span><span class="num">${c.colchonLiquido.toFixed(1)} meses</span></div>` : ''}
                 <div class="flex justify-between"><span>Meses registrados</span><span class="num">${c.mesesRegistrados}</span></div>
             </div></section>
         </div>
@@ -220,6 +274,8 @@ async function correrIA() {
 Analiza estos datos y escribe 3 o 4 párrafos cortos en español de Honduras, tono directo y cálido, sin tecnicismos ni listas.
 Habla de "usted" no, usa "vos" o "tú" de forma natural. Menciona cifras concretas en Lempiras.
 Sé honesto: si algo va mal, dilo claro; si va bien, reconócelo. No inventes datos que no estén aquí.
+Si presta dinero a terceros, ten presente que ese capital no es efectivo disponible y que hay riesgo
+de que no le paguen; el interés sí es ingreso real. Distingue entre lo que tiene a mano y lo que le deben.
 Cierra con la única cosa más importante que debería hacer este mes.
 
 Datos: ${JSON.stringify(resumenParaIA(R))}`;
