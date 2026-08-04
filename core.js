@@ -31,7 +31,7 @@ export const COL = {
     fondos:      'savings_funds',
     metas:       'savings_plans',
     prestamos:   'loans',
-    rondas:      'savings_rounds',
+    rondas:      'rounds',
     fiado:       'credit_accounts',
     financiado:  'financed_items',
     presupuesto: 'budget_profile'
@@ -53,6 +53,81 @@ export const LUGARES = {
                  ico: '<path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H18v3"/><path d="M3 7.5V18a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2"/><path d="M21 9v4h-4a2 2 0 0 1 0-4Z"/>' }
 };
 export const lugarDe = (f) => LUGARES[f?.place] || LUGARES.efectivo;
+
+/* ============================================================
+   Rondas de ahorro
+   Una ronda cambia de naturaleza a mitad de camino: antes del
+   turno lo aportado es AHORRO; después de cobrar el bote, lo que
+   falta por aportar es DEUDA. Este cálculo es la única fuente de
+   verdad y lo usan ronda.html, financiacion.html y el análisis.
+   ============================================================ */
+export const SHARE_KEY = 'mf-ronda-share';
+export const shareSugerido = () => { const v = Number(localStorage.getItem(SHARE_KEY)); return v > 0 && v <= 1 ? v : 1; };
+export function recordarShare(v) {
+    const prev = Number(localStorage.getItem(SHARE_KEY));
+    const nuevo = (prev > 0 && prev <= 1) ? (prev + v) / 2 : v;   // promedio con lo anterior
+    try { localStorage.setItem(SHARE_KEY, String(Math.round(nuevo * 100) / 100)); } catch {}
+}
+
+export function rondaInfo(r) {
+    const weeks   = Array.isArray(r?.weeks) ? r.weeks : [];
+    const n       = Number(r?.numWeeks) || weeks.length;
+    const share   = (Number(r?.share) > 0 && Number(r?.share) <= 1) ? Number(r.share) : 1;
+    const cuotaFull = Number(r?.weeklyAmount) || 0;
+    const cuota   = cuotaFull * share;                 // lo que YO aporto por semana
+    const turno   = Math.max(0, Math.min(n, Number(r?.payoutWeek) || 0));
+    const monto   = cuota * n;                         // el bote que me toca recibir
+
+    const fechaTurno = turno > 0 && weeks[turno - 1] ? weeks[turno - 1].date : null;
+    const recibido = typeof r?.received === 'boolean'
+        ? r.received
+        : (fechaTurno ? diasEntre(new Date(), new Date(fechaTurno + 'T12:00:00')) < 0 : false);
+
+    const pagadas   = weeks.filter(w => w.status === 'paid').length;
+    const pendientes = Math.max(0, n - pagadas);
+    const aportado  = pagadas * cuota;
+    const terminada = n > 0 && pagadas >= n;
+
+    /* El estado define la naturaleza del dinero:
+       - ahorrando: todo lo aportado es un activo, lo vas a recuperar en tu turno
+       - pagando:   ya cobraste el bote, así que lo que falta por aportar es deuda
+       - terminada: aportaste y cobraste lo mismo, la ronda queda saldada en cero */
+    const estado = terminada ? 'terminada' : recibido ? 'pagando' : 'ahorrando';
+
+    const ahorrado = estado === 'ahorrando' ? aportado : 0;
+    const deuda    = estado === 'pagando'   ? pendientes * cuota : 0;
+
+    /* Próxima semana sin pagar, con su estado de vencimiento */
+    let prox = null;
+    for (let i = 0; i < weeks.length; i++) {
+        if (weeks[i].status === 'paid') continue;
+        const dias = diasEntre(new Date(), new Date(weeks[i].date + 'T12:00:00'));
+        prox = { n: i + 1, date: weeks[i].date, dias,
+                 estado: dias < 0 ? 'late' : dias <= 5 ? 'soon' : 'ok',
+                 esDeuda: estado === 'pagando' };
+        break;
+    }
+
+    return { share, cuota, cuotaFull, n, turno, monto, fechaTurno, recibido, terminada, estado,
+             pagadas, pendientes, ahorrado, deuda, aportado, prox,
+             totalAportar: cuota * n,
+             progreso: n > 0 ? (pagadas / n) * 100 : 0,
+             nombre: r?.roundName || 'Ronda' };
+}
+
+/** Valor neto de una ronda para el patrimonio: positivo si ahorra, negativo si debe. */
+export function rondaNeto(r) {
+    const i = rondaInfo(r);
+    if (i.estado === 'pagando')   return -i.deuda;   // pasivo
+    if (i.estado === 'terminada') return 0;          // saldada
+    return i.ahorrado;                               // activo
+}
+
+export const ESTADO_RONDA = {
+    ahorrando: { label: 'Ahorrando', color: 'var(--pos)',   soft: 'var(--pos-soft)',  desc: 'Aportando hacia tu turno' },
+    pagando:   { label: 'Pagando',   color: 'var(--neg)',   soft: 'var(--neg-soft)',  desc: 'Ya cobraste, te toca pagar' },
+    terminada: { label: 'Terminada', color: 'var(--ink-3)', soft: 'var(--sunk)',      desc: 'Completada' }
+};
 
 /* ---------------- Utilidades ---------------- */
 export const $  = (s, r = document) => r.querySelector(s);

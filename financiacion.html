@@ -77,9 +77,10 @@
 import { db, COL, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc, query,
          $, esc, uid, money, money0, monogram, tint, flong, fmid, todayStr, isoToDate, dateToISO,
          cuotaDue, diasEntre, MESES, notice, openDialog, closeDialog, askConfirm, num, dialogFooter,
-         bootShell, shellHeader, saludo, swapView, countUp, leer, guardar } from './core.js';
+         bootShell, shellHeader, saludo, swapView, countUp, leer, guardar,
+         rondaInfo, ESTADO_RONDA } from './core.js';
 
-let items = [], route = { view: 'list', id: null };
+let items = [], rondas = [], route = { view: 'list', id: null };
 const AVISO_DIAS = 5;   // cuántos días antes empieza el recordatorio
 
 /* ---------------- Cálculos ---------------- */
@@ -107,13 +108,28 @@ function estadoCuota(it, n) {
     return dias < 0 ? 'late' : dias <= AVISO_DIAS ? 'soon' : 'pend';
 }
 const activos = () => items.filter(i => !terminado(i));
-const deudaTotal = () => activos().reduce((a, i) => a + restante(i), 0);
-const cuotaMensual = () => activos().reduce((a, i) => a + montoCuota(i), 0);
+
+/* Las rondas que ya cobraron el bote son deuda. No se copian aquí:
+   se leen de la colección de rondas y se muestran derivadas, así que
+   marcar una semana desde esta página actualiza la misma ronda. */
+function deudasRonda() {
+    return rondas.map(r => ({ r, i: rondaInfo(r) }))
+                 .filter(x => x.i.estado === 'pagando' && x.i.pendientes > 0)
+                 .sort((a, b) => (a.i.prox?.dias ?? 999) - (b.i.prox?.dias ?? 999));
+}
+const deudaRondas  = () => deudasRonda().reduce((a, x) => a + x.i.deuda, 0);
+const cuotaRondas  = () => deudasRonda().reduce((a, x) => a + x.i.cuota * 4.33, 0);   // semanal -> mensual
+
+const deudaTotal = () => activos().reduce((a, i) => a + restante(i), 0) + deudaRondas();
+const cuotaMensual = () => activos().reduce((a, i) => a + montoCuota(i), 0) + cuotaRondas();
 
 /** Cuotas vencidas o por vencer, ordenadas por urgencia. */
 function alertas() {
-    return activos().map(it => ({ it, p: proxima(it) })).filter(x => x.p && x.p.estado !== 'ok')
-                    .sort((a, b) => a.p.dias - b.p.dias);
+    const deItems = activos().map(it => ({ it, p: proxima(it) })).filter(x => x.p && x.p.estado !== 'ok');
+    const deRondas = deudasRonda().filter(x => x.i.prox && x.i.prox.estado !== 'ok')
+        .map(x => ({ ronda: x.r, i: x.i, p: { n: x.i.prox.n, due: new Date(x.i.prox.date + 'T12:00:00'),
+                     dias: x.i.prox.dias, estado: x.i.prox.estado } }));
+    return [...deItems, ...deRondas].sort((a, b) => a.p.dias - b.p.dias);
 }
 
 const textoDias = (d) => d < 0 ? `vencida hace ${Math.abs(d)} día${Math.abs(d) === 1 ? '' : 's'}`
@@ -140,27 +156,35 @@ function renderList() {
     const al = alertas();
     const act = activos();
     const fin = items.filter(terminado);
+    const dr  = deudasRonda();
 
     swapView($('#v-list'), `
         ${al.length ? `
         <div>
             <p class="sec-title">Requiere tu atención</p>
             <section class="gcard">
-                ${al.map(({ it, p }) => `
-                <button class="grow ${p.estado === 'late' ? 'alerta' : 'alerta-soon'}" data-act="abrir" data-id="${it.id}">
-                    <span class="mono-tile" style="background:${p.estado === 'late' ? 'var(--neg-soft)' : '#FFF4E0'};color:${p.estado === 'late' ? 'var(--neg)' : '#8A5A1E'}">
-                        <span class="dot-pulse"></span>
-                    </span>
-                    <span class="flex-1 min-w-0">
-                        <span class="block text-[15px] font-semibold truncate">${esc(it.name)}</span>
-                        <span class="block text-[12px] mt-0.5" style="color:var(--ink-3)">Cuota ${p.n} de ${nCuotas(it)} · ${fmid(p.due.toISOString())}</span>
-                        <span class="st ${p.estado === 'late' ? 'st-late' : 'st-soon'} mt-1.5">${textoDias(p.dias)}</span>
-                    </span>
-                    <span class="text-right">
-                        <span class="num block text-[15.5px]">${money(montoCuota(it))}</span>
-                        <span class="cur block">HNL</span>
-                    </span>
-                </button>`).join('')}
+                ${al.map((a) => {
+                    const esRonda = !!a.ronda;
+                    const nombre  = esRonda ? a.i.nombre : a.it.name;
+                    const sub     = esRonda ? `Semana ${a.p.n} de ${a.i.n} · ronda` : `Cuota ${a.p.n} de ${nCuotas(a.it)} · ${fmid(a.p.due.toISOString())}`;
+                    const monto   = esRonda ? a.i.cuota : montoCuota(a.it);
+                    const accion  = esRonda ? `data-act="abrir-ronda" data-id="${a.ronda.id}"` : `data-act="abrir" data-id="${a.it.id}"`;
+                    return `
+                    <button class="grow ${a.p.estado === 'late' ? 'alerta' : 'alerta-soon'}" ${accion}>
+                        <span class="mono-tile" style="background:${a.p.estado === 'late' ? 'var(--neg-soft)' : '#FFF4E0'};color:${a.p.estado === 'late' ? 'var(--neg)' : '#8A5A1E'}">
+                            <span class="dot-pulse"></span>
+                        </span>
+                        <span class="flex-1 min-w-0">
+                            <span class="block text-[15px] font-semibold truncate">${esc(nombre)}</span>
+                            <span class="block text-[12px] mt-0.5" style="color:var(--ink-3)">${sub}</span>
+                            <span class="st ${a.p.estado === 'late' ? 'st-late' : 'st-soon'} mt-1.5">${textoDias(a.p.dias)}</span>
+                        </span>
+                        <span class="text-right">
+                            <span class="num block text-[15.5px]">${money(monto)}</span>
+                            <span class="cur block">HNL</span>
+                        </span>
+                    </button>`;
+                }).join('')}
             </section>
         </div>` : ''}
 
@@ -171,13 +195,15 @@ function renderList() {
                     <p class="tag">Me falta pagar</p>
                     <p class="num text-[32px] leading-none mt-2" id="hero">L 0.00</p>
                     <p class="text-[12px] mt-2" style="color:var(--ink-3)">
-                        ${act.length ? `${act.length} artículo${act.length === 1 ? '' : 's'} en pago${al.length ? '' : ' · todo al día'}` : 'No debes cuotas'}
+                        ${act.length || dr.length
+                          ? `${act.length ? `${act.length} artículo${act.length === 1 ? '' : 's'}` : ''}${act.length && dr.length ? ' y ' : ''}${dr.length ? `${dr.length} ronda${dr.length === 1 ? '' : 's'}` : ''} en pago${al.length ? '' : ' · todo al día'}`
+                          : 'No debes cuotas'}
                     </p>
                 </div>
                 <div class="kpi">
                     <div><p class="tag">Cuota mensual</p><p class="num text-[14.5px] mt-1.5">${money(cuotaMensual())}</p></div>
-                    <div><p class="tag">Activos</p><p class="num text-[14.5px] mt-1.5">${act.length}</p></div>
-                    <div><p class="tag">Terminados</p><p class="num text-[14.5px] mt-1.5">${fin.length}</p></div>
+                    <div><p class="tag">Artículos</p><p class="num text-[14.5px] mt-1.5">${act.length}</p></div>
+                    <div><p class="tag">Rondas</p><p class="num text-[14.5px] mt-1.5">${dr.length}</p></div>
                 </div>
             </section>
         </div>
@@ -196,6 +222,37 @@ function renderList() {
                 <button class="btn btn-primary" data-act="nuevo">Agregar artículo</button>
             </div></section>`}
         </div>
+
+        ${dr.length ? `<div>
+            <p class="sec-title">Cuotas de rondas</p>
+            <section class="gcard">
+                ${dr.map(({ r, i }) => `
+                <button class="grow" data-act="abrir-ronda" data-id="${r.id}">
+                    <span class="mono-tile" style="background:var(--neg-soft);color:var(--neg)">${esc(monogram(i.nombre))}</span>
+                    <span class="flex-1 min-w-0">
+                        <span class="flex items-center gap-2 mb-1">
+                            <span class="text-[15px] font-semibold truncate">${esc(i.nombre)}</span>
+                            <span class="badge" style="background:var(--neg-soft);color:var(--neg);border-color:transparent">Ronda</span>
+                        </span>
+                        <span class="block text-[12px] mb-1.5" style="color:var(--ink-3)">
+                            Faltan ${i.pendientes} de ${i.n} semanas · ${money0(i.cuota)} cada una
+                        </span>
+                        <span class="meter block" style="max-width:200px"><i style="width:${i.progreso}%;background:var(--neg)"></i></span>
+                    </span>
+                    <span class="text-right">
+                        <span class="num block text-[15.5px] neg">${money(i.deuda)}</span>
+                        <span class="cur block">HNL</span>
+                    </span>
+                    <svg class="grow-chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+                </button>`).join('')}
+                <div class="gfoot">
+                    <p class="text-[12.5px]" style="color:var(--ink-2);line-height:1.6">
+                        Aparecen aquí porque ya cobraste el bote: lo que falta por aportar es deuda.
+                        Se administran desde Rondas y los cambios se ven en las dos páginas.
+                    </p>
+                </div>
+            </section>
+        </div>` : ''}
 
         ${fin.length ? `<div>
             <p class="sec-title">Terminados</p>
@@ -419,6 +476,21 @@ async function marcar(id, n) {
     } catch (e) { notice('No se pudo guardar: ' + e.message, 'neg'); }
 }
 
+/** Marca pagada una semana de ronda. Escribe en la misma colección de
+    rondas, así que el cambio se ve igual en las dos páginas. */
+async function pagarSemana(rondaId, idx) {
+    const r = rondas.find(x => x.id === rondaId);
+    if (!r) return;
+    const w = [...(r.weeks || [])];
+    if (!w[idx] || w[idx].status === 'paid') return;
+    w[idx] = { ...w[idx], status: 'paid' };
+    try {
+        await updateDoc(doc(db, COL.rondas, rondaId), { weeks: w });
+        const i = rondaInfo({ ...r, weeks: w });
+        notice(i.pendientes === 0 ? '¡Ronda completada!' : `Semana pagada · faltan ${i.pendientes}`, 'pos');
+    } catch (e) { notice('No se pudo guardar: ' + e.message, 'neg'); }
+}
+
 async function borrar(id) {
     const it = items.find(x => x.id === id);
     const ok = await askConfirm({ title: 'Eliminar artículo', danger: true, key: true, label: 'Eliminar',
@@ -434,25 +506,30 @@ function avisarHoy() {
     if (!al.length) return;
     const hoy = todayStr();
     const visto = leer('mf-aviso-fin', {});
-    const nuevos = al.filter(x => visto[`${x.it.id}-${x.p.n}`] !== hoy);
+    const clave = (x) => `${x.ronda ? 'r:' + x.ronda.id : x.it.id}-${x.p.n}`;
+    const nuevos = al.filter(x => visto[clave(x)] !== hoy);
     if (!nuevos.length) return;
-    nuevos.forEach(x => visto[`${x.it.id}-${x.p.n}`] = hoy);
+    nuevos.forEach(x => visto[clave(x)] = hoy);
     guardar('mf-aviso-fin', visto);
 
     const vencidas = nuevos.filter(x => x.p.estado === 'late');
     const l = nuevos[0];
+    const esRonda = !!l.ronda;
     openDialog(`
     <div class="py-1">
-        <p class="st ${vencidas.length ? 'st-late' : 'st-soon'} mb-3">${vencidas.length ? 'Tienes cuotas vencidas' : 'Se acerca un pago'}</p>
-        <h2 class="text-[18px] font-semibold mb-1.5">${esc(l.it.name)}</h2>
+        <p class="st ${vencidas.length ? 'st-late' : 'st-soon'} mb-3">${vencidas.length ? 'Tienes pagos vencidos' : 'Se acerca un pago'}</p>
+        <h2 class="text-[18px] font-semibold mb-1.5">${esc(esRonda ? l.i.nombre : l.it.name)}</h2>
         <p class="text-[14px] mb-4" style="color:var(--ink-2);line-height:1.6">
-            Cuota ${l.p.n} de ${nCuotas(l.it)} por <span class="num font-semibold">${money(montoCuota(l.it))}</span>,
+            ${esRonda ? `Semana ${l.p.n} de ${l.i.n}` : `Cuota ${l.p.n} de ${nCuotas(l.it)}`}
+            por <span class="num font-semibold">${money(esRonda ? l.i.cuota : montoCuota(l.it))}</span>,
             ${textoDias(l.p.dias)} (${flong(l.p.due.toISOString())}).
         </p>
-        ${nuevos.length > 1 ? `<p class="text-[13px] mb-4" style="color:var(--ink-3)">Y ${nuevos.length - 1} cuota${nuevos.length > 2 ? 's' : ''} más pendiente${nuevos.length > 2 ? 's' : ''}.</p>` : ''}
+        ${nuevos.length > 1 ? `<p class="text-[13px] mb-4" style="color:var(--ink-3)">Y ${nuevos.length - 1} pago${nuevos.length > 2 ? 's' : ''} más pendiente${nuevos.length > 2 ? 's' : ''}.</p>` : ''}
         <div class="flex gap-2.5">
             <button class="btn btn-outline flex-1" data-act="close-dialog">Después</button>
-            <button class="btn btn-primary flex-1" data-act="pagar" data-id="${l.it.id}" data-n="${l.p.n}">Ya la pagué</button>
+            ${esRonda
+              ? `<button class="btn btn-primary flex-1" data-act="pagar-semana" data-id="${l.ronda.id}" data-n="${l.p.n - 1}">Ya la pagué</button>`
+              : `<button class="btn btn-primary flex-1" data-act="pagar" data-id="${l.it.id}" data-n="${l.p.n}">Ya la pagué</button>`}
         </div>
     </div>`);
 }
@@ -472,6 +549,8 @@ document.addEventListener('click', (e) => {
         case 'pagar':  closeDialog(); marcar(id, n); break;
         case 'save-new':  crear(); break;
         case 'save-edit': editar(id); break;
+        case 'abrir-ronda':   closeDialog(); location.href = 'ronda.html'; break;
+        case 'pagar-semana':  closeDialog(); pagarSemana(id, Number(n)); break;
     }
 });
 
@@ -489,10 +568,17 @@ function mostrar() {
     setTimeout(() => { if (!avisado) { avisado = true; avisarHoy(); } }, 700);
 }
 bootShell({ onReady: () => {
+    let faltan = 2;
+    const listoUno = () => { if (--faltan <= 0) mostrar(); };
     onSnapshot(query(collection(db, COL.financiado)), (snap) => {
         items = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-        mostrar(); render();
-    }, (err) => { mostrar(); notice('Sin conexión con la nube', 'neg'); console.error(err); });
+        listoUno(); if (listo) render();
+    }, (err) => { listoUno(); notice('Sin conexión con la nube', 'neg'); console.error(err); });
+    onSnapshot(query(collection(db, COL.rondas)), (snap) => {
+        rondas = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        listoUno(); if (listo) render();
+    }, (err) => { listoUno(); console.error(err); });
+    setTimeout(mostrar, 3000);
 }});
 </script>
 </body>

@@ -14,7 +14,7 @@ con datos en Firebase Firestore y funcionamiento sin conexión. Sin paso de comp
 | `presupuesto.html` | Ingresos, gastos y situación laboral | `budget_profile/main` |
 | `analisis.html` | Evaluación financiera | lee todas |
 | `presta.html` | Préstamos otorgados | `loans` |
-| `ronda.html` | Rondas de ahorro | `savings_rounds` |
+| `ronda.html` | Rondas de ahorro | `rounds` |
 
 ## Nombre e ícono
 
@@ -36,6 +36,32 @@ El reparto se muestra en el panel y en ahorros. El análisis lo usa para avisar 
 demasiado en físico: más del 60% del ahorro en efectivo, con más de L 3,000, dispara una
 recomendación. Los cuatro lugares cuentan igual para el colchón de emergencia — todos son
 dinero disponible; la diferencia es el riesgo de pérdida o robo, no la liquidez.
+
+## Rondas: ahorro que se vuelve deuda
+
+Una ronda cambia de naturaleza a mitad de camino y el modelo lo refleja:
+
+| Estado | Cuándo | Qué representa |
+|---|---|---|
+| `ahorrando` | Antes de cobrar el bote | **Activo.** Lo aportado se recupera en tu turno |
+| `pagando` | Ya cobraste el bote | **Pasivo.** Lo que falta por aportar es deuda |
+| `terminada` | Todas las semanas pagadas | Saldada en cero: aportaste y cobraste lo mismo |
+
+El cambio lo dispara la fecha del turno, y el campo `received` permite forzarlo a mano desde el
+botón "Ya cobré el bote".
+
+**Aporte parcial.** El campo `share` (0 a 1) guarda qué fracción de la cuota pagás. Si pagás la
+mitad, aportás la mitad cada semana y recibís la mitad del bote — las dos cosas se escalan juntas.
+El último valor usado queda promediado en `localStorage` como sugerencia para las próximas rondas.
+
+**Cómo se conecta con Financiación.** Las cuotas de ronda **no se copian** a `financed_items`.
+`financiacion.html` lee la colección `rounds` y las muestra derivadas, solo cuando el estado es
+`pagando`. Marcar una semana desde ahí escribe en el mismo documento de la ronda, así que las dos
+páginas nunca pueden desincronizarse. Duplicar los datos habría sido más simple de escribir y
+mucho peor de mantener.
+
+El cálculo vive completo en `rondaInfo()` dentro de `core.js`, y lo usan `ronda.html`,
+`financiacion.html`, `analisis.js` y el panel. Una sola fuente de verdad.
 
 ## Regla importante
 

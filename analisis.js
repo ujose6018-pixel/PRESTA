@@ -3,18 +3,27 @@
    Puntúa 0-100 en cinco áreas usando los datos de todos los
    módulos. Es determinista: mismos datos, mismo resultado.
    ============================================================ */
-import { money, money0, cuotaDue, diasEntre, monthKey, isoToDate } from './core.js';
+import { money, money0, cuotaDue, diasEntre, monthKey, isoToDate, rondaInfo } from './core.js';
 
 const cl = (v, a = 0, b = 100) => Math.min(b, Math.max(a, v));
 /** Interpola lineal entre dos puntos y recorta a 0-100. */
 const escala = (v, malo, bueno) => cl(((v - malo) / (bueno - malo)) * 100);
 
 export function analizar(D) {
-    const { fondos = [], metas = [], fiado = [], financiado = [], presupuesto = {}, prestamos = [] } = D;
+    const { fondos = [], metas = [], fiado = [], financiado = [], presupuesto = {}, prestamos = [], rondas = [] } = D;
 
     /* --- Bases --- */
     const movs = (f) => Array.isArray(f?.movements) ? f.movements : [];
     const saldoFondo = (f) => movs(f).reduce((a, m) => a + (m.type === 'out' ? -Number(m.amount || 0) : Number(m.amount || 0)), 0);
+    /* --- Rondas: cambian de naturaleza al cobrar el bote --- */
+    const infoRondas = rondas.map(rondaInfo);
+    const rondasAhorro = infoRondas.filter(i => i.estado === 'ahorrando');
+    const rondasDeuda  = infoRondas.filter(i => i.estado === 'pagando');
+    const ahorroRondas = rondasAhorro.reduce((a, i) => a + i.ahorrado, 0);
+    const deudaRondas  = rondasDeuda.reduce((a, i) => a + i.deuda, 0);
+    const cuotaRondas  = rondasDeuda.reduce((a, i) => a + i.cuota * 4.33, 0);   // semanal -> mensual
+    const rondasAtrasadas = infoRondas.filter(i => !i.terminada && i.prox && i.prox.estado === 'late').length;
+
     /* Reparto por lugar: efectivo, banca, cuenta de ahorro, billetera */
     const porLugar = {};
     fondos.forEach(f => { const k = f.place || 'efectivo'; porLugar[k] = (porLugar[k] || 0) + saldoFondo(f); });
@@ -22,7 +31,8 @@ export function analizar(D) {
     const enEfectivo = porLugar.efectivo || 0;
     const bancarizado = enFondos > 0 ? 1 - enEfectivo / enFondos : 0;
 
-    const ahorroTotal = fondos.reduce((a, f) => a + saldoFondo(f), 0)
+    const ahorroTotal = ahorroRondas
+        + fondos.reduce((a, f) => a + saldoFondo(f), 0)
         + metas.reduce((a, p) => a + (p.type === 'challenge'
             ? (p.savedItems || []).reduce((x, n) => x + Number(n), 0)
             : (p.deposits || []).reduce((x, d) => x + Number(d.amount || 0), 0)), 0);
@@ -36,9 +46,9 @@ export function analizar(D) {
     const terminado = (i) => pagadas(i).length >= nCuotas(i);
     const activos = financiado.filter(i => !terminado(i));
     const deudaCuotas = activos.reduce((a, i) => a + Math.max(0, (Number(i.total) || 0) - pagadas(i).reduce((x, p) => x + Number(p.amount || montoCuota(i)), 0)), 0);
-    const cuotaMes = activos.reduce((a, i) => a + montoCuota(i), 0);
+    const cuotaMes = activos.reduce((a, i) => a + montoCuota(i), 0) + cuotaRondas;
 
-    const deudaTotal = deudaFiado + deudaCuotas;
+    const deudaTotal = deudaFiado + deudaCuotas + deudaRondas;
 
     /* --- Cartera de préstamos (dinero que me deben) --- */
     const perMes = (f) => f === 'quincenal' ? 2 : 4.33;   // periodos por mes
@@ -143,14 +153,16 @@ export function analizar(D) {
     });
 
     // 3. Puntualidad de pagos
+    const atrasos = vencidas + rondasAtrasadas;
     const puntualidad = totalMarcadas + vencidas === 0 ? null : (aTiempo / (totalMarcadas + vencidas)) * 100;
     areas.push({
         id: 'puntual', nombre: 'Puntualidad en pagos', peso: 20,
-        puntos: puntualidad === null ? 75 : cl(puntualidad - vencidas * 12),
-        detalle: puntualidad === null ? 'Todavía no hay cuotas registradas para evaluar.'
-            : vencidas > 0 ? `Tienes ${vencidas} cuota${vencidas === 1 ? '' : 's'} vencida${vencidas === 1 ? '' : 's'} sin marcar.`
+        puntos: puntualidad === null ? (atrasos > 0 ? cl(75 - atrasos * 15) : 75) : cl(puntualidad - atrasos * 12),
+        detalle: atrasos > 0
+            ? `Tienes ${atrasos} pago${atrasos === 1 ? '' : 's'} atrasado${atrasos === 1 ? '' : 's'}${rondasAtrasadas ? ` (${rondasAtrasadas} de rondas)` : ''}.`
+            : puntualidad === null ? 'Todavía no hay cuotas registradas para evaluar.'
             : `Pagaste ${aTiempo} de ${totalMarcadas} cuotas a tiempo. Sin atrasos.`,
-        dato: vencidas
+        dato: atrasos
     });
 
     // 4. Capacidad de ahorro
@@ -217,6 +229,10 @@ export function analizar(D) {
         rec.push({ p: 2, t: 'Arma un colchón de emergencia', d: `Tu ahorro no cubre ni un mes de gastos. Empieza por juntar ${money0(gastoRef)}, aunque sea de a poco.`, link: 'ahorro.html' });
     else if (colchon < metaColchon && gastoRef > 0)
         rec.push({ p: 3, t: 'Sigue creciendo tu colchón', d: `Vas por ${colchon.toFixed(1)} meses. ${inestable ? 'Como tus ingresos varían, apunta a ' + metaColchon + ' meses.' : 'La meta son ' + metaColchon + ' meses.'} Te faltan ${money0(Math.max(0, gastoRef * metaColchon - ahorroTotal))}.`, link: 'ahorro.html' });
+    if (rondasAtrasadas > 0)
+        rec.push({ p: 1, t: 'Semanas de ronda atrasadas', d: `${rondasAtrasadas} ronda${rondasAtrasadas === 1 ? '' : 's'} con semanas sin pagar. En una ronda el atraso afecta a todo el grupo, no solo a vos.`, link: 'ronda.html' });
+    if (deudaRondas > 0 && ingresos > 0 && deudaRondas > ingresos)
+        rec.push({ p: 2, t: 'Las rondas cobradas pesan', d: `Debés ${money0(deudaRondas)} en rondas que ya cobraste, más de un mes de ingresos. Evitá entrar a otra hasta terminar estas.`, link: 'ronda.html' });
     if (!hayPresupuesto)
         rec.push({ p: 1, t: 'Registra tus ingresos y gastos', d: 'Sin eso no puedo medir si tu deuda es manejable ni cuánto deberías ahorrar. Es lo que más cambia el análisis.', link: 'presupuesto.html' });
     if (cuotaMes > 0 && ingresos > 0 && cuotaMes / ingresos > 0.3)
@@ -246,6 +262,8 @@ export function analizar(D) {
         cifras: { ahorroTotal, ahorroEfectivo, porLugar, enEfectivo, bancarizado, deudaTotal, deudaFiado, deudaCuotas, cuotaMes,
                   ingresos, ingresosDeclarados, gastos, disponible,
                   colchon, colchonLiquido, metaColchon, vencidas, verdes, mesesRegistrados: meses.length, empleo,
+                  ahorroRondas, deudaRondas, cuotaRondas, rondasAtrasadas,
+                  nRondasAhorro: rondasAhorro.length, nRondasDeuda: rondasDeuda.length,
                   capitalPrestado, interesMensual, proxCobro, cuotasVencidasP, capitalEnMora,
                   concentracion, saludCobro, nPrestamos: vivos.length, hayCartera,
                   patrimonio: ahorroTotal + capitalPrestado - deudaTotal }
@@ -268,6 +286,9 @@ export function resumenParaIA(r) {
         interes_mensual_por_prestamos: Math.round(c.interesMensual),
         cuotas_de_prestamos_sin_cobrar: c.cuotasVencidasP,
         numero_de_deudores: c.nPrestamos,
+        ahorro_en_rondas_antes_de_cobrar: Math.round(c.ahorroRondas),
+        deuda_en_rondas_ya_cobradas: Math.round(c.deudaRondas),
+        semanas_de_ronda_atrasadas: c.rondasAtrasadas,
         deuda_fiado_pulperia: Math.round(c.deudaFiado),
         deuda_cuotas_financiadas: Math.round(c.deudaCuotas),
         cuotas_mensuales: Math.round(c.cuotaMes),

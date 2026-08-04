@@ -1,4 +1,4 @@
-const CACHE_NAME = 'caudal-v2';
+const CACHE_NAME = 'caudal-v3';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

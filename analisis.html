@@ -81,8 +81,8 @@ import { db, COL, collection, doc, onSnapshot, query, $, esc, money, money0, not
          closeDialog, bootShell, shellHeader, saludo, swapView, countUp, leer, guardar, flong, clamp } from './core.js';
 import { analizar, resumenParaIA } from './analisis.js';
 
-const D = { fondos: [], metas: [], fiado: [], financiado: [], prestamos: [], presupuesto: {} };
-let R = null, pendientes = 6;
+const D = { fondos: [], metas: [], fiado: [], financiado: [], prestamos: [], rondas: [], presupuesto: {} };
+let R = null, pendientes = 7;
 
 /* ---------------- Vista ---------------- */
 function render() {
@@ -185,6 +185,22 @@ function render() {
                     </p>
                 </div>
             </section>
+        </div>` : ''}
+
+        ${(c.ahorroRondas > 0 || c.deudaRondas > 0) ? `
+        <div>
+            <p class="sec-title">Mis rondas</p>
+            <section class="gcard"><div class="px-4 py-4">
+                <div class="space-y-2.5 text-[13px]" style="color:var(--ink-2)">
+                    ${c.nRondasAhorro ? `<div class="flex justify-between"><span>Ahorrando (${c.nRondasAhorro})</span><span class="num pos">${money(c.ahorroRondas)}</span></div>` : ''}
+                    ${c.nRondasDeuda ? `<div class="flex justify-between"><span>Ya cobradas, en pago (${c.nRondasDeuda})</span><span class="num neg">−${money(c.deudaRondas).replace('−','')}</span></div>` : ''}
+                    ${c.cuotaRondas > 0 ? `<div class="flex justify-between"><span>Aporte mensual</span><span class="num">${money(c.cuotaRondas)}</span></div>` : ''}
+                    ${c.rondasAtrasadas > 0 ? `<div class="flex justify-between"><span>Semanas atrasadas</span><span class="num neg">${c.rondasAtrasadas}</span></div>` : ''}
+                </div>
+                <p class="text-[12.5px] mt-4 pt-3" style="border-top:1px solid var(--rule);color:var(--ink-2);line-height:1.6">
+                    Antes de tu turno lo aportado cuenta como ahorro. Después de cobrar el bote, lo que falta pasa a deuda.
+                </p>
+            </div></section>
         </div>` : ''}
 
         ${R.rec.length ? `<div>
@@ -375,6 +391,7 @@ bootShell({ onReady: () => {
     suscribir(COL.fiado, 'fiado');
     suscribir(COL.financiado, 'financiado');
     suscribir(COL.prestamos, 'prestamos');
+    suscribir(COL.rondas, 'rondas');
     onSnapshot(doc(db, COL.presupuesto, 'main'), (s) => {
         D.presupuesto = s.exists() ? s.data() : {};
         if (--pendientes <= 0) mostrar();

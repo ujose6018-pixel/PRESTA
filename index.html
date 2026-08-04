@@ -90,8 +90,10 @@
 </div>
 
 <script type="module">
-import { db, COL, collection, doc, onSnapshot, query, $, esc, money, money0, notice, openDialog,
-         closeDialog, bootShell, saludo, swapView, countUp, cuotaDue, diasEntre, flong, LUGARES } from './core.js';
+import { db, COL, collection, doc, addDoc, onSnapshot, updateDoc, query, arrayUnion,
+         $, esc, uid, money, money0, monogram, tint, notice, openDialog, closeDialog, askConfirm,
+         num, dialogFooter, bootShell, saludo, swapView, countUp, cuotaDue, diasEntre, flong,
+         todayStr, dateToISO, LUGARES, rondaInfo, ESTADO_RONDA } from './core.js';
 import { analizar } from './analisis.js';
 
 const D = { fondos: [], metas: [], fiado: [], financiado: [], prestamos: [], rondas: [], presupuesto: {} };
@@ -266,26 +268,37 @@ function render() {
                 ${tile('presta.html', ICO.presta, 'Préstamos', c.capitalPrestado > 0 ? money0(c.capitalPrestado) : '—',
                        c.capitalPrestado > 0 ? `+${money0(c.interesMensual)}/mes de interés` : 'Sin préstamos',
                        'var(--accent)', 'var(--brand-soft)', c.cuotasVencidasP > 0)}
-                ${tile('ronda.html', ICO.ronda, 'Rondas', D.rondas.length ? String(D.rondas.length) : '—',
-                       D.rondas.length ? `ronda${D.rondas.length === 1 ? '' : 's'} activa${D.rondas.length === 1 ? '' : 's'}` : 'Sin rondas')}
+                ${(() => {
+                    const neto = c.ahorroRondas - c.deudaRondas;
+                    const nAct = c.nRondasAhorro + c.nRondasDeuda;
+                    return tile('ronda.html', ICO.ronda, 'Rondas',
+                        nAct ? (neto < 0 ? '−' : '') + money0(Math.abs(neto)) : '—',
+                        nAct ? `${c.nRondasAhorro ? `${c.nRondasAhorro} ahorrando` : ''}${c.nRondasAhorro && c.nRondasDeuda ? ' · ' : ''}${c.nRondasDeuda ? `${c.nRondasDeuda} en pago` : ''}` : 'Sin rondas',
+                        neto < 0 ? 'var(--neg)' : neto > 0 ? 'var(--pos)' : 'var(--brand-text)',
+                        neto < 0 ? 'var(--neg-soft)' : neto > 0 ? 'var(--pos-soft)' : 'var(--brand-soft)',
+                        c.rondasAtrasadas > 0);
+                })()}
             </div>
         </div>
 
         <div>
-            <p class="sec-title">Atajos</p>
-            <section class="gcard">
+            <p class="sec-title">Registrar movimiento</p>
+            <div class="grid grid-cols-2 gap-3">
+                <button class="btn btn-primary" style="padding:14px" data-act="mov" data-type="in">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                    Ingreso
+                </button>
+                <button class="btn btn-outline" style="padding:14px" data-act="mov" data-type="out" ${D.fondos.length ? '' : 'disabled'}>
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+                    Retiro
+                </button>
+            </div>
+            <section class="gcard mt-3">
                 <a class="grow" href="fiado.html" style="text-decoration:none;color:inherit">
                     <span class="mono-tile" style="background:var(--brand-soft);color:var(--brand-text)">
                         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
                     </span>
                     <span class="flex-1 text-[14.5px] font-semibold">Anotar algo que saqué fiado</span>
-                    <svg class="grow-chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
-                </a>
-                <a class="grow" href="ahorro.html" style="text-decoration:none;color:inherit">
-                    <span class="mono-tile" style="background:var(--pos-soft);color:var(--pos)">
-                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-                    </span>
-                    <span class="flex-1 text-[14.5px] font-semibold">Guardar dinero en un fondo</span>
                     <svg class="grow-chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
                 </a>
                 <a class="grow" href="financiacion.html" style="text-decoration:none;color:inherit">
@@ -306,10 +319,155 @@ function render() {
         : c.deudaTotal > 0 ? `Debes ${money0(c.deudaTotal)} en total` : 'Todo al día';
 }
 
+
+/* ============================================================
+   Ingresos y retiros desde el panel
+   Escribe en la misma colección de fondos que usa Ahorros.
+   ============================================================ */
+const movsF   = (f) => Array.isArray(f?.movements) ? f.movements : [];
+const saldoDe = (f) => movsF(f).reduce((a, m) => a + (m.type === 'out' ? -Number(m.amount || 0) : Number(m.amount || 0)), 0);
+const CATS = { in: ['Sueldo','Negocio','Extra','Devolución','Regalo','Otro'],
+               out:['Emergencia','Compra','Deuda','Comida','Transporte','Otro'] };
+
+/** Paso 1: elegir el fondo (o crear uno si es ingreso y no hay). */
+function dlgElegirFondo(tipo) {
+    const lista = tipo === 'out' ? D.fondos.filter(f => saldoDe(f) > 0) : D.fondos;
+    if (tipo === 'out' && !lista.length) { notice('No tenés fondos con saldo para retirar', 'neg'); return; }
+    if (tipo === 'in' && !D.fondos.length) return dlgNuevoFondo();
+    if (lista.length === 1) return dlgMovimiento(lista[0].id, tipo);
+    openDialog(`
+    <h2 class="text-[17px] font-semibold mb-1">${tipo === 'in' ? 'Registrar ingreso' : 'Registrar retiro'}</h2>
+    <p class="text-[13px] mb-4" style="color:var(--ink-3)">${tipo === 'in' ? '¿A qué fondo entra?' : '¿De qué fondo sale?'}</p>
+    <div style="border:1px solid var(--rule);border-radius:10px;overflow:hidden">
+        ${lista.map(f => {
+            const L = LUGARES[f.place] || LUGARES.efectivo;
+            return `<button class="grow" data-act="pick-fondo" data-id="${f.id}" data-type="${tipo}">
+                <span class="mono-tile" style="background:${tint(L.color, .12)};color:${L.color}">${esc(monogram(f.name))}</span>
+                <span class="flex-1 min-w-0">
+                    <span class="block text-[14.5px] font-semibold truncate">${esc(f.name)}</span>
+                    <span class="block text-[11.5px]" style="color:var(--ink-3)">${L.label}</span>
+                </span>
+                <span class="num text-[14.5px]">${money(saldoDe(f))}</span>
+            </button>`;
+        }).join('')}
+    </div>
+    ${tipo === 'in' ? `<button class="btn btn-outline btn-block mt-3" data-act="nuevo-fondo">+ Crear un fondo nuevo</button>` : ''}`);
+}
+
+function dlgNuevoFondo() {
+    openDialog(`
+    <h2 class="text-[17px] font-semibold mb-1">Nuevo fondo</h2>
+    <p class="text-[13px] mb-5" style="color:var(--ink-3)">Después registrás el ingreso dentro de él.</p>
+    <div class="space-y-4">
+        <div><label class="label" for="nfName">Nombre</label>
+            <input id="nfName" class="field" maxlength="40" placeholder="Ahorro general, Emergencias…" data-autofocus></div>
+        <div>
+            <span class="label">¿Dónde está ese dinero?</span>
+            <div class="grid grid-cols-2 gap-2" id="nfPlace" data-v="efectivo">
+                ${Object.entries(LUGARES).map(([k, L]) => `
+                <button type="button" class="chip" style="padding:10px;text-align:left;display:flex;align-items:center;gap:9px"
+                        aria-pressed="${k === 'efectivo'}" data-act="nf-place" data-v="${k}">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex:none">${L.ico}</svg>
+                    <span style="min-width:0"><span style="display:block;font-weight:700;font-size:13px">${L.label}</span>
+                    <span style="display:block;font-size:11px;opacity:.7;font-weight:400">${L.desc}</span></span>
+                </button>`).join('')}
+            </div>
+        </div>
+        ${dialogFooter('save-fondo', 'Crear y continuar')}
+    </div>`);
+}
+
+/** Paso 2: monto, categoría, concepto y fecha. */
+function dlgMovimiento(fondoId, tipo) {
+    const f = D.fondos.find(x => x.id === fondoId);
+    if (!f) return;
+    const entra = tipo === 'in', saldo = saldoDe(f);
+    openDialog(`
+    <h2 class="text-[17px] font-semibold mb-1">${entra ? 'Registrar ingreso' : 'Registrar retiro'}</h2>
+    <p class="text-[13px] mb-5" style="color:var(--ink-3)">${esc(f.name)} · saldo <span class="num">${money(saldo)}</span></p>
+    <div class="space-y-4">
+        <div>
+            <label class="label" for="mvAmount">Monto</label>
+            <input id="mvAmount" class="field field-num text-[19px] font-semibold" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00" data-autofocus>
+            <div class="flex flex-wrap gap-1.5 mt-2">
+                ${[100, 500, 1000, 5000].map(v => `<button type="button" class="chip" data-act="mv-set" data-v="${v}">${v.toLocaleString('es-HN')}</button>`).join('')}
+                ${!entra && saldo > 0 ? `<button type="button" class="chip" data-act="mv-set" data-v="${saldo}">Todo</button>` : ''}
+            </div>
+        </div>
+        <div>
+            <span class="label">Categoría</span>
+            <div class="flex flex-wrap gap-1.5" id="mvCat" data-v="${CATS[tipo][0]}">
+                ${CATS[tipo].map(x => `<button type="button" class="chip" aria-pressed="${x === CATS[tipo][0]}" data-act="mv-cat" data-v="${esc(x)}">${esc(x)}</button>`).join('')}
+            </div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div><label class="label" for="mvNote">Concepto <span class="hint">— opcional</span></label>
+                <input id="mvNote" class="field" maxlength="60" placeholder="${entra ? 'Quincena de julio' : 'Pago de luz'}"></div>
+            <div><label class="label" for="mvDate">Fecha</label>
+                <input id="mvDate" class="field" type="date" value="${todayStr()}" max="${todayStr()}"></div>
+        </div>
+        <div class="flex gap-2.5 justify-end pt-1">
+            <button type="button" class="btn btn-outline" data-act="close-dialog">Cancelar</button>
+            <button type="button" class="btn btn-primary" data-primary data-act="mv-save" data-id="${fondoId}" data-type="${tipo}">${entra ? 'Ingresar' : 'Retirar'}</button>
+        </div>
+    </div>`);
+}
+
+async function crearFondo() {
+    const name = ($('#nfName').value || '').trim();
+    if (!name) { notice('Escribí el nombre del fondo', 'neg'); return; }
+    try {
+        const ref = await addDoc(collection(db, COL.fondos), {
+            name, color: 'azul', place: $('#nfPlace').dataset.v, goal: null,
+            createdAt: new Date().toISOString(), movements: []
+        });
+        notice('Fondo creado', 'pos');
+        setTimeout(() => dlgMovimiento(ref.id, 'in'), 260);
+    } catch (e) { notice('No se pudo crear: ' + e.message, 'neg'); }
+}
+
+async function guardarMov(fondoId, tipo) {
+    const amount = num('#mvAmount');
+    if (amount <= 0) { notice('Escribí un monto mayor a cero', 'neg'); $('#mvAmount').focus(); return; }
+    const f = D.fondos.find(x => x.id === fondoId);
+    if (tipo === 'out' && amount > saldoDe(f)) {
+        const ok = await askConfirm({ title: 'El retiro supera el saldo', danger: true, label: 'Registrar igual',
+            body: `El fondo tiene <span class="num">${money(saldoDe(f))}</span>. Quedaría en <span class="num neg">${money(saldoDe(f) - amount)}</span>.` });
+        if (!ok) return;
+    }
+    try {
+        await updateDoc(doc(db, COL.fondos, fondoId), { movements: arrayUnion({
+            id: uid(), type: tipo, amount,
+            category: $('#mvCat').dataset.v || '',
+            note: ($('#mvNote').value || '').trim(),
+            date: dateToISO($('#mvDate').value || todayStr())
+        }) });
+        closeDialog();
+        notice(`${tipo === 'in' ? 'Ingreso' : 'Retiro'} de ${money(amount)} registrado`, tipo === 'in' ? 'pos' : 'neg');
+    } catch (e) { notice('No se pudo guardar: ' + e.message, 'neg'); }
+}
+
 /* ---------------- Ajustes ---------------- */
 document.addEventListener('click', (e) => {
     const el = e.target.closest('[data-act]');
-    if (!el) return;
+    if (!el || el.disabled) return;
+    const { act, id, type, v } = el.dataset;
+    switch (act) {
+        case 'mov':         dlgElegirFondo(type); return;
+        case 'pick-fondo':  dlgMovimiento(id, type); return;
+        case 'nuevo-fondo': dlgNuevoFondo(); return;
+        case 'save-fondo':  crearFondo(); return;
+        case 'mv-save':     guardarMov(id, type); return;
+        case 'mv-set':      $('#mvAmount').value = v; $('#mvAmount').focus(); return;
+        case 'mv-cat':
+            $('#mvCat').dataset.v = v;
+            $('#mvCat').querySelectorAll('.chip').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === v));
+            return;
+        case 'nf-place':
+            $('#nfPlace').dataset.v = v;
+            $('#nfPlace').querySelectorAll('.chip').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === v));
+            return;
+    }
     if (el.dataset.act === 'ajustes') {
         openDialog(`
         <h2 class="text-[17px] font-semibold mb-5">Ajustes</h2>
