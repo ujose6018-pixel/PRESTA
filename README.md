@@ -1,4 +1,4 @@
-# Mis Finanzas
+# Caudal
 
 Control financiero personal en Lempiras. Aplicación web instalable (PWA) sobre GitHub Pages,
 con datos en Firebase Firestore y funcionamiento sin conexión. Sin paso de compilación.
@@ -15,6 +15,27 @@ con datos en Firebase Firestore y funcionamiento sin conexión. Sin paso de comp
 | `analisis.html` | Evaluación financiera | lee todas |
 | `presta.html` | Préstamos otorgados | `loans` |
 | `ronda.html` | Rondas de ahorro | `savings_rounds` |
+
+## Nombre e ícono
+
+El nombre está en una sola constante: `APP` en `core.js`. Cambiándola ahí y en `manifest.json`
+se renombra toda la aplicación.
+
+Los íconos están en `icons/` y se generan desde `icons/mark.svg` (anillo con un segmento
+desprendido — la composición del patrimonio, que es lo que la app muestra). Ya no se depende
+de ningún CDN externo, así que el ícono funciona sin conexión. Incluye versiones `maskable`
+para Android, `apple-touch-icon` para iOS y accesos directos en el manifiesto.
+
+## Dónde está el dinero
+
+Cada fondo lleva un campo `place` con cuatro valores: `efectivo`, `banca`, `ahorro`,
+`billetera`. Los fondos creados antes de este cambio no tienen el campo y se tratan como
+efectivo, así que nada se rompe.
+
+El reparto se muestra en el panel y en ahorros. El análisis lo usa para avisar si tienes
+demasiado en físico: más del 60% del ahorro en efectivo, con más de L 3,000, dispara una
+recomendación. Los cuatro lugares cuentan igual para el colchón de emergencia — todos son
+dinero disponible; la diferencia es el riesgo de pérdida o robo, no la liquidez.
 
 ## Archivos compartidos
 

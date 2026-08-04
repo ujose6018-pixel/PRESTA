@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mis-finanzas-v5';
+const CACHE_NAME = 'caudal-v1';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -12,6 +12,13 @@ const ASSETS_TO_CACHE = [
   './fiado.html',
   './analisis.js',
   './core.js',
+  './icons/mark.svg',
+  './icons/icon-192.png',
+  './icons/icon-512.png',
+  './icons/maskable-192.png',
+  './icons/maskable-512.png',
+  './icons/apple-touch-icon.png',
+  './icons/favicon-32.png',
   './manifest.json',
   'https://cdn.tailwindcss.com',
   'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js',

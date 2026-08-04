@@ -15,6 +15,13 @@ export function analizar(D) {
     /* --- Bases --- */
     const movs = (f) => Array.isArray(f?.movements) ? f.movements : [];
     const saldoFondo = (f) => movs(f).reduce((a, m) => a + (m.type === 'out' ? -Number(m.amount || 0) : Number(m.amount || 0)), 0);
+    /* Reparto por lugar: efectivo, banca, cuenta de ahorro, billetera */
+    const porLugar = {};
+    fondos.forEach(f => { const k = f.place || 'efectivo'; porLugar[k] = (porLugar[k] || 0) + saldoFondo(f); });
+    const enFondos = fondos.reduce((a, f) => a + saldoFondo(f), 0);
+    const enEfectivo = porLugar.efectivo || 0;
+    const bancarizado = enFondos > 0 ? 1 - enEfectivo / enFondos : 0;
+
     const ahorroTotal = fondos.reduce((a, f) => a + saldoFondo(f), 0)
         + metas.reduce((a, p) => a + (p.type === 'challenge'
             ? (p.savedItems || []).reduce((x, n) => x + Number(n), 0)
@@ -216,6 +223,8 @@ export function analizar(D) {
         rec.push({ p: 2, t: 'Las cuotas pesan mucho', d: `Entre todas las cuotas se van ${money0(cuotaMes)} al mes, más del 30% de tus ingresos. Evita financiar algo nuevo hasta bajar eso.`, link: 'financiacion.html' });
     if (inestable && colchon >= metaColchon && deudaTotal === 0)
         rec.push({ p: 3, t: 'Estás bien parado', d: 'Con ingresos variables, tener colchón y cero deuda es exactamente donde querés estar. Mantenlo.', link: 'ahorro.html' });
+    if (enEfectivo > 3000 && enFondos > 0 && enEfectivo / enFondos > 0.6)
+        rec.push({ p: 3, t: 'Mucho dinero en efectivo', d: `${money0(enEfectivo)} guardados en físico, el ${Math.round(enEfectivo / enFondos * 100)}% de tu ahorro. En el banco o en billetera digital corre menos riesgo de robo o pérdida.`, link: 'ahorro.html' });
     if (ahorroTotal > 0 && metas.length === 0)
         rec.push({ p: 4, t: 'Ponle nombre a tu ahorro', d: 'Una meta concreta hace más fácil no tocar el dinero. Define para qué es lo que estás juntando.', link: 'ahorro.html' });
 
@@ -234,7 +243,7 @@ export function analizar(D) {
 
     return {
         total, nivel, areas, rec: rec.slice(0, 5),
-        cifras: { ahorroTotal, ahorroEfectivo, deudaTotal, deudaFiado, deudaCuotas, cuotaMes,
+        cifras: { ahorroTotal, ahorroEfectivo, porLugar, enEfectivo, bancarizado, deudaTotal, deudaFiado, deudaCuotas, cuotaMes,
                   ingresos, ingresosDeclarados, gastos, disponible,
                   colchon, colchonLiquido, metaColchon, vencidas, verdes, mesesRegistrados: meses.length, empleo,
                   capitalPrestado, interesMensual, proxCobro, cuotasVencidasP, capitalEnMora,
@@ -254,6 +263,7 @@ export function resumenParaIA(r) {
         gastos_mensuales: Math.round(c.gastos),
         disponible_mensual: Math.round(c.disponible),
         ahorro_total: Math.round(c.ahorroTotal),
+        porcentaje_del_ahorro_en_efectivo_fisico: Math.round((1 - c.bancarizado) * 100),
         capital_prestado_a_terceros: Math.round(c.capitalPrestado),
         interes_mensual_por_prestamos: Math.round(c.interesMensual),
         cuotas_de_prestamos_sin_cobrar: c.cuotasVencidasP,

@@ -3,13 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Mis Finanzas</title>
+<title>Caudal</title>
 <link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/svg+xml" href="icons/mark.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <meta name="theme-color" content="#C41E30">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Mis Finanzas">
-<link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2489/2489756.png">
+<meta name="apple-mobile-web-app-title" content="Caudal">
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="theme.css">
 <script>(function(){var s=localStorage.getItem("mf-theme");document.documentElement.dataset.theme=s?s:(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");})();</script>
@@ -28,8 +30,8 @@
     <header class="appbar">
         <div class="wrap appbar-in">
             <span class="flex items-center gap-2.5">
-                <span class="mono-tile brandmark">MF</span>
-                <span class="font-semibold text-[15.5px]" style="font-family:var(--f-display);letter-spacing:-.01em">Mis Finanzas</span>
+                <span class="mono-tile brandmark"><svg width="17" height="17" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="11" aria-hidden="true"><path d="M32 12.5a19.5 19.5 0 1 0 16.9 9.8"/><path d="M59.6 26.7A28 28 0 0 0 36.9 4.4"/></svg></span>
+                <span class="font-semibold text-[15.5px]" style="font-family:var(--f-display);letter-spacing:-.01em">Caudal</span>
             </span>
             <span class="flex items-center gap-1">
                 <button class="appbar-btn" data-act="theme" aria-label="Cambiar tema">
@@ -62,7 +64,7 @@
 
 <script type="module">
 import { db, COL, collection, doc, onSnapshot, query, $, esc, money, money0, notice, openDialog,
-         closeDialog, bootShell, saludo, swapView, countUp, cuotaDue, diasEntre, flong } from './core.js';
+         closeDialog, bootShell, saludo, swapView, countUp, cuotaDue, diasEntre, flong, LUGARES } from './core.js';
 import { analizar } from './analisis.js';
 
 const D = { fondos: [], metas: [], fiado: [], financiado: [], prestamos: [], rondas: [], presupuesto: {} };
@@ -205,6 +207,19 @@ function render() {
                 </a>
             </section>
         </div>
+
+        ${(() => {
+            const items = Object.entries(c.porLugar || {}).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+            const T = items.reduce((a, [, v]) => a + v, 0);
+            if (T <= 0) return '';
+            return `<div>
+            <p class="sec-title">Dónde está mi dinero</p>
+            <section class="gcard"><div class="px-4 py-4">
+                <div class="stack mb-3">${items.map(([k, v]) => `<i style="width:${(v / T * 100).toFixed(1)}%;background:${(LUGARES[k] || LUGARES.efectivo).color}"></i>`).join('')}</div>
+                <div class="legend">${items.map(([k, v]) => `<span><i style="background:${(LUGARES[k] || LUGARES.efectivo).color}"></i>${(LUGARES[k] || LUGARES.efectivo).label} ${money0(v)}</span>`).join('')}</div>
+            </div></section>
+        </div>`;
+        })()}
 
         <div>
             <p class="sec-title">Módulos</p>

@@ -3,14 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Ahorros y fondos · PrestaControl</title>
+    <title>Ahorros · Caudal</title>
 
     <link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/svg+xml" href="icons/mark.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
     <meta name="theme-color" content="#C41E30">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="Ahorros">
-    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2489/2489756.png">
 
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="theme.css">
@@ -83,7 +85,7 @@
         <div class="max-w-3xl mx-auto px-3 appbar-in">
             <span class="flex items-center gap-2.5 min-w-0">
                 <span class="mono-tile" style="background: rgba(255,255,255,.16); color: var(--brand-ink); width: 30px; height: 30px; font-size: 11.5px;">MF</span>
-                <span class="font-semibold text-[15.5px] truncate" style="font-family: var(--f-display); letter-spacing: -.01em;">Mis Finanzas</span>
+                <span class="font-semibold text-[15.5px] truncate" style="font-family: var(--f-display); letter-spacing: -.01em;">Caudal</span>
             </span>
             <span class="flex items-center gap-1">
                 <button id="theme-btn" class="appbar-btn" aria-label="Cambiar tema">
@@ -155,6 +157,7 @@
 <div id="notices" class="notices"></div>
 
 <script type="module">
+import { LUGARES, lugarDe } from './core.js';
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { getFirestore, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc, query,
@@ -437,6 +440,35 @@ function renderHome() {
 
         <div>
         <p class="sec-title">Mi progreso</p>
+        ${(() => {
+            if (!funds.length) return '';
+            const por = {};
+            funds.forEach(f => { const k = f.place || 'efectivo'; por[k] = (por[k] || 0) + balanceOf(f); });
+            const items = Object.entries(por).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+            const T = items.reduce((a, [, v]) => a + v, 0);
+            if (T <= 0 || items.length === 0) return '';
+            return `<div>
+            <p class="sec-title">Dónde está mi dinero</p>
+            <section class="gcard"><div class="px-4 py-4">
+                <div class="stack mb-3">
+                    ${items.map(([k, v]) => `<i style="width:${(v / T * 100).toFixed(1)}%;background:${LUGARES[k].color}"></i>`).join('')}
+                </div>
+                <div class="space-y-2.5">
+                    ${items.map(([k, v]) => `<div class="flex items-center gap-2.5">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="${LUGARES[k].color}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="flex:none">${LUGARES[k].ico}</svg>
+                        <span class="flex-1 text-[13.5px]">${LUGARES[k].label}</span>
+                        <span class="num text-[13.5px]">${money(v)}</span>
+                        <span class="num text-[11.5px]" style="color:var(--ink-3);width:38px;text-align:right">${Math.round(v / T * 100)}%</span>
+                    </div>`).join('')}
+                </div>
+                ${(por.efectivo || 0) / T > 0.6 && T > 3000 ? `
+                <p class="text-[12.5px] mt-4 pt-3" style="border-top:1px solid var(--rule);color:var(--ink-2);line-height:1.6">
+                    Tenés el ${Math.round((por.efectivo || 0) / T * 100)}% en efectivo en casa. Guardado en el banco corre menos riesgo de pérdida o robo.
+                </p>` : ''}
+            </div></section>
+        </div>`;
+        })()}
+
         <section class="gcard">
             <div class="gcard-head">
                 <span class="gcard-ico">
@@ -492,7 +524,10 @@ function gRowFund(f) {
         <span class="mono-tile" style="background:${tint(c, .1)}; color:${c};">${esc(monogram(f.name))}</span>
         <span class="flex-1 min-w-0">
             <span class="block text-[15px] font-semibold truncate">${esc(f.name)}</span>
-            <span class="block text-[12px] mt-0.5" style="color: var(--ink-3);">${pct !== null ? `${Math.round(pct)}% de ${money0(f.goal)}` : `${movs(f).length} movimiento${movs(f).length === 1 ? '' : 's'}`}</span>
+            <span class="flex items-center gap-1.5 text-[12px] mt-0.5" style="color: var(--ink-3);">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="${lugarDe(f).color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none">${lugarDe(f).ico}</svg>
+                ${lugarDe(f).label}${pct !== null ? ` · ${Math.round(pct)}% de ${money0(f.goal)}` : ` · ${movs(f).length} mov`}
+            </span>
         </span>
         <span class="text-right">
             <span class="num block text-[15.5px] ${bal < 0 ? 'neg' : ''}">${money(bal)}</span>
@@ -963,6 +998,18 @@ function dialogFund(id = null) {
             <input id="fName" class="field" maxlength="40" placeholder="Ahorro general, Emergencias, Negocio…" value="${esc(f?.name || '')}" data-autofocus>
         </div>
         <div>
+            <span class="label">¿Dónde está ese dinero?</span>
+            <div class="grid grid-cols-2 gap-2" id="fPlace" data-v="${f?.place || 'efectivo'}">
+                ${Object.entries(LUGARES).map(([k, L]) => `
+                <button type="button" class="chip" style="padding:10px;text-align:left;display:flex;align-items:center;gap:9px"
+                        aria-pressed="${k === (f?.place || 'efectivo')}" data-act="pick-place" data-v="${k}">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex:none">${L.ico}</svg>
+                    <span style="min-width:0"><span style="display:block;font-weight:700;font-size:13px">${L.label}</span>
+                    <span style="display:block;font-size:11px;opacity:.7;font-weight:400">${L.desc}</span></span>
+                </button>`).join('')}
+            </div>
+        </div>
+        <div>
             <span class="label">Color de referencia</span>
             <div class="flex gap-2" id="fColor" data-v="${sel}">
                 ${Object.entries(COLORS).map(([k, hex]) => `<button type="button" data-act="pick-color" data-v="${k}" aria-label="${k}" aria-pressed="${k === sel}"
@@ -1169,7 +1216,7 @@ async function createFund() {
     if (!name) { notice('Escribe el nombre del fondo', 'neg'); $('#fName').focus(); return; }
     const inicial = num('#fStart'), goal = num('#fGoal');
     const data = {
-        name, color: $('#fColor').dataset.v, goal: goal > 0 ? goal : null,
+        name, color: $('#fColor').dataset.v, place: $('#fPlace').dataset.v, goal: goal > 0 ? goal : null,
         createdAt: new Date().toISOString(),
         movements: inicial !== 0 ? [{ id: uid(), type: inicial > 0 ? 'in' : 'out', amount: Math.abs(inicial), category: 'Saldo inicial', note: 'Saldo inicial', date: new Date().toISOString() }] : []
     };
@@ -1184,7 +1231,7 @@ async function saveFundEdit(id) {
     if (!name) { notice('Escribe el nombre del fondo', 'neg'); return; }
     const goal = num('#fGoal');
     try {
-        await updateDoc(doc(db, FUNDS, id), { name, color: $('#fColor').dataset.v, goal: goal > 0 ? goal : null });
+        await updateDoc(doc(db, FUNDS, id), { name, color: $('#fColor').dataset.v, place: $('#fPlace').dataset.v, goal: goal > 0 ? goal : null });
         closeDialog(); notice('Fondo actualizado');
     } catch (e) { notice('No se pudo guardar: ' + e.message, 'neg'); }
 }
@@ -1396,6 +1443,10 @@ document.addEventListener('click', (e) => {
 
         case 'set-amount':   $('#mAmount').value = v; $('#mAmount').focus(); break;
         case 'set-amount-d': $('#dAmount').value = v; $('#dAmount').focus(); break;
+        case 'pick-place':
+            $('#fPlace').dataset.v = v;
+            $('#fPlace').querySelectorAll('.chip').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === v));
+            break;
         case 'pick-color':
             $('#fColor').dataset.v = v;
             $('#fColor').querySelectorAll('[data-act="pick-color"]').forEach(b => {

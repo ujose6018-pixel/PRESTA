@@ -36,6 +36,22 @@ export const COL = {
 };
 export const MASTER_KEY = '2026';
 
+/* ---- Identidad. Cambiar aquí para renombrar toda la aplicación ---- */
+export const APP = { nombre: 'Caudal', corto: 'Caudal' };
+
+/* ---- Dónde está guardado el dinero de cada fondo ---- */
+export const LUGARES = {
+    efectivo:  { label: 'Efectivo',        desc: 'En físico, en casa',        color: '#8A5A1E',
+                 ico: '<rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/><path d="M6 10v4M18 10v4"/>' },
+    banca:     { label: 'Banca digital',   desc: 'App del banco',             color: '#1F3A5F',
+                 ico: '<rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 5.5h3M12 18.2h.01"/>' },
+    ahorro:    { label: 'Cuenta de ahorro',desc: 'Cuenta en el banco',        color: '#1C6544',
+                 ico: '<path d="M3 9.5 12 4l9 5.5"/><path d="M5 10v8M19 10v8M9 10v8M15 10v8M3 20h18"/>' },
+    billetera: { label: 'Billetera digital', desc: 'Tigo Money u otra',       color: '#7B2D38',
+                 ico: '<path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H18v3"/><path d="M3 7.5V18a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2"/><path d="M21 9v4h-4a2 2 0 0 1 0-4Z"/>' }
+};
+export const lugarDe = (f) => LUGARES[f?.place] || LUGARES.efectivo;
+
 /* ---------------- Utilidades ---------------- */
 export const $  = (s, r = document) => r.querySelector(s);
 export const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -254,7 +270,7 @@ export function shellHeader(titulo, { back = 'index.html' } = {}) {
     <header class="appbar">
         <div class="wrap appbar-in">
             <span class="flex items-center gap-2.5 min-w-0">
-                <span class="mono-tile brandmark">MF</span>
+                <span class="mono-tile brandmark"><svg width="17" height="17" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="11" aria-hidden="true"><path d="M32 12.5a19.5 19.5 0 1 0 16.9 9.8"/><path d="M59.6 26.7A28 28 0 0 0 36.9 4.4"/></svg></span>
                 <span class="font-semibold text-[15.5px] truncate" style="font-family: var(--f-display); letter-spacing:-.01em;">${esc(titulo)}</span>
             </span>
             <span class="flex items-center gap-1">
