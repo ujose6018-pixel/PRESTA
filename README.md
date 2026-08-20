@@ -63,6 +63,45 @@ mucho peor de mantener.
 El cálculo vive completo en `rondaInfo()` dentro de `core.js`, y lo usan `ronda.html`,
 `financiacion.html`, `analisis.js` y el panel. Una sola fuente de verdad.
 
+## Titularidad: lo que administrás para otros
+
+No todo el dinero que pasa por la app es tuyo. Dos casos reales:
+
+- Una cuenta de **fiado** abierta a nombre de otra persona, donde solo llevás el control de lo que
+  esa persona debe.
+- Un **préstamo** hecho con capital que puso un tercero, donde el rédito es de esa persona y vos
+  solo administrás.
+
+Ambos documentos llevan dos campos:
+
+```js
+fondeo: 'mio' | 'tercero'   // ausente = 'mio', así los registros viejos no se rompen
+fondeoNombre: 'Don Beto'    // de quién es, solo cuando es de tercero
+```
+
+**Qué cambia cuando es de tercero:**
+
+| | Propio | De tercero |
+|---|---|---|
+| Patrimonio | Suma / resta | Queda fuera |
+| Deuda total | Suma | Queda fuera |
+| Ingreso por interés | Rédito menos comisión | Solo tu comisión (normalmente 0) |
+| Cuotas atrasadas | Bajan tu puntuación | Solo avisan, no puntúan |
+| Área de cartera | Se evalúa | No aplica |
+
+La comisión cambia de sentido según el caso, y por eso el cálculo es uno solo:
+
+```js
+const factorMio = (p) => esTercero(p) ? comision(p)/100 : 1 - comision(p)/100;
+```
+
+Con capital propio, la comisión es lo que se lleva el intermediario y se descuenta. Con capital
+ajeno, la comisión es lo único que te queda a vos. El resto va para quien puso el dinero.
+
+Las listas se muestran separadas: "Con mi capital" y "Préstamos que administro", "Mis pulperías" y
+"Cuentas que administro". El análisis tiene un bloque aparte, "Lo que administro", que deja claro
+que ese dinero no cuenta en tus números.
+
 ## Regla importante
 
 Ninguna página que importe `core.js` debe inicializar Firebase por su cuenta. `core.js` ya llama a
@@ -123,9 +162,49 @@ una sola persona baja la nota aunque pague puntual.
 
 **Capa de IA opcional.** Con una llave de Gemini se genera además una lectura escrita. La llave se
 guarda en `localStorage`, nunca en el repositorio. Solo se envían totales redondeados: ningún nombre
-de fondo o pulpería, ninguna fecha, ningún movimiento individual. En el plan gratuito de Google los
-datos enviados pueden usarse para entrenar sus modelos; por eso el resumen va anonimizado y el
-análisis principal no depende de la IA.
+de fondo, pulpería o deudor, ninguna fecha, ningún movimiento individual. En el plan gratuito de
+Google los datos enviados pueden usarse para mejorar sus modelos; por eso el resumen va anonimizado
+y el análisis principal no depende de la IA.
+
+### Gemini · Interactions API
+
+La llamada usa el **Interactions API**, que desde junio de 2026 reemplazó a `generateContent` como
+interfaz principal de Gemini. Todo vive en `analisis.html`, en tres constantes al inicio del bloque
+de IA:
+
+```js
+const GEMINI_URL      = 'https://generativelanguage.googleapis.com/v1beta/interactions';
+const GEMINI_REVISION = '2026-05-20';   // fija el esquema de la respuesta
+const GEMINI_MODEL    = 'gemini-3.7-flash';
+```
+
+Diferencias frente al API anterior, por si hay que tocarlo:
+
+| | `generateContent` (viejo) | Interactions (actual) |
+|---|---|---|
+| Endpoint | `/v1beta/models/{modelo}:generateContent` | `/v1beta/interactions` |
+| Modelo | en la URL | campo `model` del cuerpo |
+| Llave | `?key=` en la URL | header `x-goog-api-key` |
+| Header extra | ninguno | `Api-Revision: 2026-05-20` |
+| Respuesta | `candidates[0].content.parts[]` | `steps[]` |
+
+La respuesta ya no trae `candidates` sino `steps`: una línea de tiempo con el razonamiento del
+modelo, las herramientas que usó y la salida final. El texto está en los pasos de tipo
+`model_output`, y lo extrae `textoDeInteraccion()` tomando la última tanda seguida de esos pasos.
+
+Dos detalles importantes:
+
+- **`store: false`.** Por defecto el API guarda cada interacción en los servidores de Google
+  (1 día en el plan gratuito, 55 en el de pago). Como cada análisis es una sola pregunta sin
+  seguimiento, se desactiva. Eso sí, `store: false` impide usar `previous_interaction_id` y
+  `background: true` — si algún día se quiere una conversación de varios turnos, hay que
+  reactivarlo o mandar el historial completo en cada llamada.
+- **Sin `temperature`.** Los modelos Gemini 3.x dejaron de aceptar `temperature`, `top_p` y
+  `top_k`. Si se agregan, la llamada falla.
+
+Modelos válidos hoy: `gemini-3.7-flash` (el que usa la app), `gemini-3.5-flash-lite` (más barato),
+`gemini-3.1-pro-preview` (razonamiento complejo). Los `gemini-2.x` y `gemini-1.5-x` están
+deprecados y ya no funcionan.
 
 ## Colores
 

@@ -8,7 +8,7 @@
 <link rel="icon" type="image/svg+xml" href="icons/mark.svg">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<meta name="theme-color" content="#C41E30">
+<meta name="theme-color" content="#7B2CBF">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Fiado">
@@ -88,14 +88,17 @@
 import { db, COL, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc, query, arrayUnion,
          $, esc, uid, money, money0, monogram, tint, fshort, flong, ftime, monthKey, monthLabel,
          todayStr, isoToDate, dateToISO, notice, openDialog, closeDialog, askConfirm, num,
-         dialogFooter, bootShell, shellHeader, saludo, swapView, countUp } from './core.js';
+         dialogFooter, bootShell, mountShell, saludo, swapView, countUp,
+         esTercero, duenoDe, badgeTercero, selectorTitular, leerTitular, clicTitular } from './core.js';
 
 let cuentas = [], route = { view: 'list', id: null };
 
 const mv    = (c) => Array.isArray(c?.entries) ? c.entries : [];
 /** Saldo = lo que llevo fiado menos lo que he abonado. */
 const deuda = (c) => mv(c).reduce((a, e) => a + (e.type === 'payment' ? -Number(e.amount || 0) : Number(e.amount || 0)), 0);
-const deudaTotal = () => cuentas.reduce((a, c) => a + deuda(c), 0);
+const deudaMia    = () => cuentas.filter(c => !esTercero(c)).reduce((a, c) => a + deuda(c), 0);
+const deudaAjena  = () => cuentas.filter(esTercero).reduce((a, c) => a + deuda(c), 0);
+const deudaTotal  = () => deudaMia();   // solo lo mío entra en mis números
 
 function conSaldo(c) {
     const asc = mv(c).slice().sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -127,9 +130,12 @@ const render = () => route.view === 'list' ? renderList() : renderDetail();
 
 /* ---------------- Lista ---------------- */
 function renderList() {
-    const total = deudaTotal();
-    const conDeuda = cuentas.filter(c => deuda(c) > 0);
-    const mes = cuentas.reduce((a, c) => { const m = mesActual(c); return { sacado: a.sacado + m.sacado, abonado: a.abonado + m.abonado }; }, { sacado: 0, abonado: 0 });
+    const mias   = cuentas.filter(c => !esTercero(c));
+    const ajenas = cuentas.filter(esTercero);
+    const total = deudaMia();
+    const ajeno = deudaAjena();
+    const conDeuda = mias.filter(c => deuda(c) > 0);
+    const mes = mias.reduce((a, c) => { const m = mesActual(c); return { sacado: a.sacado + m.sacado, abonado: a.abonado + m.abonado }; }, { sacado: 0, abonado: 0 });
 
     swapView($('#v-list'), `
         <div>
@@ -138,14 +144,14 @@ function renderList() {
                 <div class="px-4 pt-4 pb-4">
                     <p class="tag">Total fiado</p>
                     <p class="num text-[32px] leading-none mt-2 ${total > 0 ? 'neg' : ''}" id="hero">L 0.00</p>
-                    <p class="text-[12px] mt-2" style="color:var(--ink-3)">
+                    <p class="text-[12px] mt-2 font-semibold" style="opacity:.75">
                         ${conDeuda.length ? `En ${conDeuda.length} lugar${conDeuda.length === 1 ? '' : 'es'} · al ${flong(new Date().toISOString())}` : 'No debes nada. Al día.'}
                     </p>
                 </div>
                 <div class="kpi">
                     <div><p class="tag">Saqué este mes</p><p class="num text-[14.5px] mt-1.5 neg">${money(mes.sacado)}</p></div>
                     <div><p class="tag">Aboné este mes</p><p class="num text-[14.5px] mt-1.5 pos">${money(mes.abonado)}</p></div>
-                    <div><p class="tag">Lugares</p><p class="num text-[14.5px] mt-1.5">${cuentas.length}</p></div>
+                    <div><p class="tag">Lugares</p><p class="num text-[14.5px] mt-1.5">${mias.length}</p></div>
                 </div>
             </section>
         </div>
@@ -155,7 +161,7 @@ function renderList() {
                 <p class="sec-title">Mis pulperías</p>
                 <button class="text-[13px] font-semibold mb-2" data-act="nueva" style="color:var(--brand-text)">+ Agregar lugar</button>
             </div>
-            ${cuentas.length ? `<section class="gcard">${cuentas.map(fila).join('')}</section>` : `
+            ${mias.length ? `<section class="gcard">${mias.map(fila).join('')}</section>` : `
             <section class="gcard"><div class="px-4 py-5">
                 <h2 class="text-[16px] font-semibold mb-2">Agrega tu pulpería</h2>
                 <p class="text-[13.5px] mb-4" style="color:var(--ink-2);line-height:1.6">
@@ -164,6 +170,21 @@ function renderList() {
                 <button class="btn btn-primary" data-act="nueva">Agregar mi pulpería</button>
             </div></section>`}
         </div>
+
+        ${ajenas.length ? `
+        <div>
+            <p class="sec-title">Cuentas que administro</p>
+            <section class="gcard">
+                ${ajenas.map(fila).join('')}
+                <div class="gfoot">
+                    <p class="text-[12.5px]" style="color:var(--ink-2);line-height:1.6">
+                        Estas deudas son de otras personas. Se registran igual, pero
+                        <b>no entran en tu patrimonio ni en tu salud financiera</b>.
+                        Suman <span class="num">${money(ajeno)}</span> en total.
+                    </p>
+                </div>
+            </section>
+        </div>` : ''}
 
         ${cuentas.length ? `
         <div>
@@ -187,7 +208,10 @@ function fila(c) {
     return `<button class="grow" data-act="abrir" data-id="${c.id}">
         <span class="mono-tile" style="background:${tint('#C41E30', .1)};color:var(--brand-text)">${esc(monogram(c.name))}</span>
         <span class="flex-1 min-w-0">
-            <span class="block text-[15px] font-semibold truncate">${esc(c.name)}</span>
+            <span class="flex items-center gap-2 min-w-0">
+                <span class="text-[15px] font-extrabold truncate">${esc(c.name)}</span>
+                ${badgeTercero(c)}
+            </span>
             <span class="block text-[12px] mt-0.5" style="color:var(--ink-3)">${d > 0 ? `${mv(c).length} movimiento${mv(c).length === 1 ? '' : 's'}` : 'Sin deuda'}</span>
         </span>
         <span class="text-right">
@@ -253,7 +277,8 @@ function renderDetail() {
                             </button>
                         </div>
                     </div>
-                    <p class="tag mt-5">Debo ahora</p>
+                    ${esTercero(c) ? `<div class="mt-4"><span class="badge" style="background:var(--accent-soft);color:var(--accent)">Cuenta de ${esc(duenoDe(c))}</span></div>` : ''}
+                    <p class="tag mt-5">${esTercero(c) ? `Debe ${esc(duenoDe(c))}` : 'Debo ahora'}</p>
                     <p class="num text-[30px] leading-none mt-2 ${d > 0 ? 'neg' : 'pos'}" id="hero2">L 0.00</p>
                     ${d <= 0 ? `<p class="st st-ok mt-3"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg> Cuenta al día</p>` : ''}
                 </div>
@@ -293,6 +318,7 @@ function dlgCuenta(id = null) {
             <input id="nName" class="field" maxlength="40" placeholder="Pulpería Doña Mari" value="${esc(c?.name || '')}" data-autofocus></div>
         <div><label class="label" for="nOwner">Dueño o encargado <span class="hint">— opcional</span></label>
             <input id="nOwner" class="field" maxlength="40" placeholder="Doña Mari" value="${esc(c?.owner || '')}"></div>
+        ${selectorTitular('fiado', c?.fondeo || 'mio', c?.fondeoNombre || '')}
         ${c ? '' : `<div><label class="label" for="nStart">¿Ya debes algo ahí? <span class="hint">— opcional</span></label>
             <input id="nStart" class="field field-num" type="number" step="0.01" inputmode="decimal" placeholder="0.00"></div>`}
         ${dialogFooter(c ? 'save-cuenta-edit' : 'save-cuenta', c ? 'Guardar' : 'Agregar', c?.id || '')}
@@ -379,7 +405,7 @@ async function crearCuenta() {
     const ini = num('#nStart');
     try {
         const ref = await addDoc(collection(db, COL.fiado), {
-            name, owner: ($('#nOwner').value || '').trim(), createdAt: new Date().toISOString(),
+            name, owner: ($('#nOwner').value || '').trim(), ...leerTitular(), createdAt: new Date().toISOString(),
             entries: ini > 0 ? [{ id: uid(), type: 'charge', amount: ini, note: 'Saldo anterior', date: new Date().toISOString() }] : []
         });
         closeDialog(); notice('Lugar agregado', 'pos'); go('detail', ref.id);
@@ -389,7 +415,7 @@ async function crearCuenta() {
 async function editarCuenta(id) {
     const name = ($('#nName').value || '').trim();
     if (!name) { notice('Escribe el nombre del lugar', 'neg'); return; }
-    try { await updateDoc(doc(db, COL.fiado, id), { name, owner: ($('#nOwner').value || '').trim() }); closeDialog(); notice('Actualizado'); }
+    try { await updateDoc(doc(db, COL.fiado, id), { name, owner: ($('#nOwner').value || '').trim(), ...leerTitular() }); closeDialog(); notice('Actualizado'); }
     catch (e) { notice('No se pudo guardar: ' + e.message, 'neg'); }
 }
 
@@ -485,6 +511,7 @@ document.addEventListener('click', (e) => {
         case 'update-mov':       actualizarMov(id, eid); break;
         case 'borrar-mov':       closeDialog(); borrarMov(id, eid); break;
         case 'set':  $('#mAmount').value = v; $('#mAmount').focus(); break;
+        case 'pick-titular': clicTitular(el); break;
         case 'tipo':
             $('#mType').dataset.v = type;
             $('#mType').querySelectorAll('.chip').forEach(b => b.setAttribute('aria-pressed', b.dataset.type === type));
@@ -493,7 +520,7 @@ document.addEventListener('click', (e) => {
 });
 
 /* ---------------- Arranque ---------------- */
-$('#shell').innerHTML = shellHeader('Fiado');
+mountShell('Fiado', 'fiado');
 let listo = false;
 function mostrar() {
     if (listo) return;

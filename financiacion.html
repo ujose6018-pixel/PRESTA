@@ -8,7 +8,7 @@
 <link rel="icon" type="image/svg+xml" href="icons/mark.svg">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<meta name="theme-color" content="#C41E30">
+<meta name="theme-color" content="#7B2CBF">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Financiación">
@@ -67,6 +67,10 @@
             </div>
         </div>
     </div>
+    <button class="fab" data-act="nuevo">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        Agregar deuda
+    </button>
     <main class="wrap py-5">
         <section id="v-list"></section>
         <section id="v-detail" class="hidden"></section>
@@ -77,7 +81,7 @@
 import { db, COL, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc, query,
          $, esc, uid, money, money0, monogram, tint, flong, fmid, todayStr, isoToDate, dateToISO,
          cuotaDue, diasEntre, MESES, notice, openDialog, closeDialog, askConfirm, num, dialogFooter,
-         bootShell, shellHeader, saludo, swapView, countUp, leer, guardar,
+         bootShell, mountShell, saludo, swapView, countUp, leer, guardar,
          rondaInfo, ESTADO_RONDA } from './core.js';
 
 let items = [], rondas = [], route = { view: 'list', id: null };
@@ -209,11 +213,8 @@ function renderList() {
         </div>
 
         <div>
-            <div class="flex items-center justify-between">
-                <p class="sec-title">En pago</p>
-                <button class="text-[13px] font-semibold mb-2" data-act="nuevo" style="color:var(--brand-text)">+ Agregar artículo</button>
-            </div>
-            ${act.length ? `<section class="gcard">${act.map(fila).join('')}</section>` : `
+            <p class="sec-title">En pago</p>
+            ${act.length ? act.map(fila).join('') : `
             <section class="gcard"><div class="px-4 py-5">
                 <h2 class="text-[16px] font-semibold mb-2">Registra un artículo financiado</h2>
                 <p class="text-[13.5px] mb-4" style="color:var(--ink-2);line-height:1.6">
@@ -256,7 +257,7 @@ function renderList() {
 
         ${fin.length ? `<div>
             <p class="sec-title">Terminados</p>
-            <section class="gcard">${fin.map(fila).join('')}</section>
+            ${fin.map(fila).join('')}
         </div>` : ''}
     `);
     countUp($('#hero'), deudaTotal());
@@ -264,22 +265,51 @@ function renderList() {
 
 function fila(it) {
     const p = proxima(it), pct = (pagadas(it).length / nCuotas(it)) * 100;
-    const fin = terminado(it);
-    return `<button class="grow" data-act="abrir" data-id="${it.id}">
-        <span class="mono-tile" style="background:${fin ? 'var(--pos-soft)' : tint('#C41E30', .1)};color:${fin ? 'var(--pos)' : 'var(--brand-text)'}">${esc(monogram(it.name))}</span>
-        <span class="flex-1 min-w-0">
-            <span class="block text-[15px] font-semibold truncate">${esc(it.name)}</span>
-            <span class="block text-[12px] mt-0.5 mb-1.5" style="color:var(--ink-3)">
-                ${fin ? 'Pagado por completo' : `${pagadas(it).length} de ${nCuotas(it)} cuotas${p ? ' · ' + textoDias(p.dias) : ''}`}
-            </span>
-            <span class="meter block" style="max-width:200px"><i style="width:${pct}%;${fin ? 'background:var(--pos)' : ''}"></i></span>
-        </span>
-        <span class="text-right">
-            <span class="num block text-[15.5px]">${money(fin ? 0 : restante(it))}</span>
-            <span class="cur block">${fin ? 'LISTO' : 'HNL'}</span>
-        </span>
-        <svg class="grow-chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
-    </button>`;
+    const listo = terminado(it);
+    const urgente = p && p.estado !== 'ok';
+    return `<div class="gcard" style="margin-bottom:12px">
+        <div class="px-4 pt-4 pb-4">
+            <div class="flex items-start gap-3 mb-3">
+                <span class="mono-tile" style="background:${listo ? 'var(--pos-soft)' : 'var(--brand-soft)'};color:${listo ? 'var(--pos)' : 'var(--brand-text)'}">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3 10h18M7 14.5h4"/></svg>
+                </span>
+                <span class="flex-1 min-w-0">
+                    <span class="block text-[16px] font-extrabold truncate">${esc(it.name)}</span>
+                    <span class="block text-[13px] mt-0.5" style="color:var(--ink-3)">Cuota ${money(montoCuota(it))}</span>
+                </span>
+                <button class="btn btn-quiet btn-sm flex-none" style="padding:6px 8px" data-act="abrir" data-id="${it.id}" aria-label="Ver detalle">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="5" r="1.4" fill="currentColor"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/><circle cx="12" cy="19" r="1.4" fill="currentColor"/></svg>
+                </button>
+            </div>
+
+            <div class="flex justify-between items-baseline text-[13px] mb-2" style="color:var(--ink-2)">
+                <span>Pagado: <b class="num" style="color:var(--ink)">${money(pagado(it))}</b></span>
+                <span>Queda: <b class="num" style="color:${listo ? 'var(--pos)' : 'var(--ink)'}">${money(restante(it))}</b></span>
+            </div>
+            <div class="meter mb-3"><i style="width:${pct}%;${listo ? 'background:var(--pos)' : ''}"></i></div>
+
+            ${p ? `
+            <div class="flex items-center gap-2 mb-1">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="${p.estado === 'late' ? 'var(--neg)' : p.estado === 'soon' ? 'var(--warn)' : 'var(--brand-text)'}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>
+                <span class="text-[13.5px] font-bold" style="color:${p.estado === 'late' ? 'var(--neg)' : p.estado === 'soon' ? 'var(--warn)' : 'var(--brand-text)'}">
+                    Próximo pago: ${fmid(p.due.toISOString())}
+                </span>
+                <span class="text-[12.5px] ml-auto font-bold" style="color:${p.estado === 'late' ? 'var(--neg)' : 'var(--ink-3)'}">${textoDias(p.dias)}</span>
+            </div>` : ''}
+            <p class="text-[12px] mb-3" style="color:var(--ink-3)">
+                ${esc(it.method || 'Financiado')} · ${pagadas(it).length} de ${nCuotas(it)} cuotas pagadas
+            </p>
+
+            ${listo ? `<span class="st st-ok">Pagado por completo</span>` : `
+            <div class="flex gap-2.5">
+                <button class="btn btn-outline flex-1" data-act="abrir" data-id="${it.id}">Ver cuotas</button>
+                ${p ? `<button class="btn btn-primary flex-1" data-act="pagar" data-id="${it.id}" data-n="${p.n}">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg>
+                    Pagar cuota
+                </button>` : ''}
+            </div>`}
+        </div>
+    </div>`;
 }
 
 /* ---------------- Detalle ---------------- */
@@ -555,7 +585,7 @@ document.addEventListener('click', (e) => {
 });
 
 /* ---------------- Arranque ---------------- */
-$('#shell').innerHTML = shellHeader('Financiación');
+mountShell('Deudas', 'deudas');
 let listo = false, avisado = false;
 function mostrar() {
     if (listo) return;

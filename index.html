@@ -8,14 +8,14 @@
 <link rel="icon" type="image/svg+xml" href="icons/mark.svg">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<meta name="theme-color" content="#C41E30">
+<meta name="theme-color" content="#7B2CBF">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Caudal">
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="theme.css">
 <script>(function(){var s=localStorage.getItem("mf-theme");document.documentElement.dataset.theme=s?s:(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");})();</script>
-<style>body{padding-bottom:26px;background:var(--paper)}</style>
+<style></style>
 </head>
 <body>
 
@@ -56,16 +56,20 @@
 <div id="app" class="hidden">
     <header class="appbar">
         <div class="wrap appbar-in">
-            <span class="flex items-center gap-2.5">
-                <span class="mono-tile brandmark"><svg width="17" height="17" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="11" aria-hidden="true"><path d="M32 12.5a19.5 19.5 0 1 0 16.9 9.8"/><path d="M59.6 26.7A28 28 0 0 0 36.9 4.4"/></svg></span>
-                <span class="font-semibold text-[15.5px]" style="font-family:var(--f-display);letter-spacing:-.01em">Caudal</span>
+            <span class="flex items-center gap-2.5 min-w-0">
+                <span class="mono-tile brandmark">
+                    <svg width="17" height="17" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="11" aria-hidden="true">
+                        <path d="M32 12.5a19.5 19.5 0 1 0 16.9 9.8"/><path d="M59.6 26.7A28 28 0 0 0 36.9 4.4"/>
+                    </svg>
+                </span>
+                <span class="font-extrabold text-[16px]" style="letter-spacing:-.02em">Caudal</span>
             </span>
-            <span class="flex items-center gap-1">
+            <span class="flex items-center gap-1.5">
                 <button class="appbar-btn" data-act="theme" aria-label="Cambiar tema">
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z"/></svg>
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z"/></svg>
                 </button>
                 <button class="appbar-btn" data-act="ajustes" aria-label="Ajustes">
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z"/></svg>
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z"/></svg>
                 </button>
             </span>
         </div>
@@ -90,7 +94,7 @@
 </div>
 
 <script type="module">
-import { db, COL, collection, doc, addDoc, onSnapshot, updateDoc, query, arrayUnion,
+import { db, COL, bottomNav, collection, doc, addDoc, onSnapshot, updateDoc, query, arrayUnion,
          $, esc, uid, money, money0, monogram, tint, notice, openDialog, closeDialog, askConfirm,
          num, dialogFooter, bootShell, saludo, swapView, countUp, cuotaDue, diasEntre, flong,
          todayStr, dateToISO, LUGARES, rondaInfo, ESTADO_RONDA } from './core.js';
@@ -192,63 +196,103 @@ function render() {
             </section>
         </div>` : ''}
 
-        <div>
-            <p class="sec-title">Mi posición</p>
-            <section class="gcard hero">
-                <div class="px-4 pt-4 pb-4">
-                    <p class="tag">Patrimonio neto</p>
-                    <p class="num text-[32px] leading-none mt-2 ${c.patrimonio < 0 ? 'neg' : ''}" id="hero">L 0.00</p>
-                    <p class="text-[12px] mt-2 mb-4" style="color:var(--ink-3)">Efectivo más lo que me deben, menos lo que debo</p>
-                    ${(() => {
-                        const T = ahorro + c.capitalPrestado + c.deudaTotal;
-                        if (T <= 0) return '';
-                        const w = (v) => (v / T * 100).toFixed(1) + '%';
-                        return `<div class="stack mb-2.5">
-                            ${ahorro > 0 ? `<i style="width:${w(ahorro)};background:var(--pos)"></i>` : ''}
-                            ${c.capitalPrestado > 0 ? `<i style="width:${w(c.capitalPrestado)};background:var(--accent)"></i>` : ''}
-                            ${c.deudaTotal > 0 ? `<i style="width:${w(c.deudaTotal)};background:var(--neg)"></i>` : ''}
-                        </div>
-                        <div class="legend">
-                            ${ahorro > 0 ? `<span><i style="background:var(--pos)"></i>Efectivo ${money0(ahorro)}</span>` : ''}
-                            ${c.capitalPrestado > 0 ? `<span><i style="background:var(--accent)"></i>Prestado ${money0(c.capitalPrestado)}</span>` : ''}
-                            ${c.deudaTotal > 0 ? `<span><i style="background:var(--neg)"></i>Debo ${money0(c.deudaTotal)}</span>` : ''}
-                        </div>`;
-                    })()}
-                    ${c.interesMensual > 0 ? `
-                    <div class="mt-4 pt-3.5" style="border-top:1px solid var(--rule)">
-                        <span class="passive">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-                            ${money0(c.interesMensual)} al mes en intereses
-                        </span>
-                        <p class="text-[12px] mt-2" style="color:var(--ink-3)">
-                            Ingreso pasivo de ${c.nPrestamos} préstamo${c.nPrestamos === 1 ? '' : 's'}${c.gastos > 0 ? ` · cubre el ${Math.round(Math.min(999, c.interesMensual / c.gastos * 100))}% de tus gastos` : ''}
-                        </p>
-                    </div>` : ''}
+        <section class="gcard hero">
+            <div class="px-5 pt-5 pb-5">
+                <p class="tag">Patrimonio neto</p>
+                <p class="num text-[38px] leading-[1.1] mt-1.5" id="hero">L 0.00</p>
+                <p class="text-[12.5px] mt-1.5 font-semibold" style="opacity:.75">
+                    ${c.ingresos > 0 ? `Ingresos del mes: ${money(c.ingresos)}` : 'Efectivo más lo que me deben, menos lo que debo'}
+                </p>
+
+                <div class="hero-actions">
+                    <button class="hero-btn" data-act="mov" data-type="in">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                        Ingreso
+                    </button>
+                    <button class="hero-btn" data-act="mov" data-type="out" ${D.fondos.length ? '' : 'disabled'}>
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>
+                        Gasto
+                    </button>
                 </div>
-                <div class="kpi">
-                    <div><p class="tag">Tengo a mano</p><p class="num text-[14.5px] mt-1.5 pos">${money(ahorro)}</p></div>
-                    <div><p class="tag">Me deben</p><p class="num text-[14.5px] mt-1.5" style="color:var(--accent)">${money(c.capitalPrestado)}</p></div>
-                    <div><p class="tag">Salud</p><p class="num text-[14.5px] mt-1.5">${R.total}/100</p></div>
-                </div>
-                <a class="gfoot flex items-center justify-between" href="analisis.html" style="text-decoration:none;color:inherit">
-                    <span class="text-[13.5px] font-semibold" style="color:var(--brand-text)">Ver análisis completo</span>
-                    <svg class="grow-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
-                </a>
-            </section>
+
+                ${(() => {
+                    const T = ahorro + c.capitalPrestado + c.deudaTotal;
+                    if (T <= 0) return '';
+                    const w = (v) => (v / T * 100).toFixed(1) + '%';
+                    return `<div class="stack mt-5 mb-3">
+                        ${ahorro > 0 ? `<i style="width:${w(ahorro)};background:#8BF0C0"></i>` : ''}
+                        ${c.capitalPrestado > 0 ? `<i style="width:${w(c.capitalPrestado)};background:#FFE08A"></i>` : ''}
+                        ${c.deudaTotal > 0 ? `<i style="width:${w(c.deudaTotal)};background:#FFB3B9"></i>` : ''}
+                    </div>
+                    <div class="legend" style="color:rgba(255,255,255,.85)">
+                        ${ahorro > 0 ? `<span style="color:inherit"><i style="background:#8BF0C0"></i>Tengo ${money0(ahorro)}</span>` : ''}
+                        ${c.capitalPrestado > 0 ? `<span style="color:inherit"><i style="background:#FFE08A"></i>Me deben ${money0(c.capitalPrestado)}</span>` : ''}
+                        ${c.deudaTotal > 0 ? `<span style="color:inherit"><i style="background:#FFB3B9"></i>Debo ${money0(c.deudaTotal)}</span>` : ''}
+                    </div>`;
+                })()}
+            </div>
+        </section>
+
+        <div class="statpair">
+            <a class="stat" href="financiacion.html">
+                <span class="stat-ico" style="background:var(--neg-soft)">
+                    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--neg)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3 10h18M7 14.5h4"/></svg>
+                </span>
+                <span class="stat-name">Deudas</span>
+                <span class="stat-val" style="color:${c.deudaTotal > 0 ? 'var(--neg)' : 'var(--ink)'}">${money(c.deudaTotal)}</span>
+            </a>
+            <a class="stat" href="ahorro.html">
+                <span class="stat-ico" style="background:var(--pos-soft)">
+                    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--pos)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M18.5 10.5c0-3.3-2.9-6-6.5-6S5.5 7.2 5.5 10.5c0 1.7.8 3.2 2 4.3V19h2.5v-1.6c.8.2 1.6.3 2.5.3s1.7-.1 2.5-.3V19H17.5v-4.2c1-1.1 1-2.6 1-4.3Z"/><circle cx="15.5" cy="10" r=".9" fill="var(--pos)"/></svg>
+                </span>
+                <span class="stat-name">Ahorros</span>
+                <span class="stat-val pos">${money(ahorro)}</span>
+            </a>
         </div>
 
-        ${(() => {
-            const items = Object.entries(c.porLugar || {}).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
-            const T = items.reduce((a, [, v]) => a + v, 0);
-            if (T <= 0) return '';
-            return `<div>
-            <p class="sec-title">Dónde está mi dinero</p>
-            <section class="gcard"><div class="px-4 py-4">
-                <div class="stack mb-3">${items.map(([k, v]) => `<i style="width:${(v / T * 100).toFixed(1)}%;background:${(LUGARES[k] || LUGARES.efectivo).color}"></i>`).join('')}</div>
-                <div class="legend">${items.map(([k, v]) => `<span><i style="background:${(LUGARES[k] || LUGARES.efectivo).color}"></i>${(LUGARES[k] || LUGARES.efectivo).label} ${money0(v)}</span>`).join('')}</div>
-            </div></section>
-        </div>`;
-        })()}
+        ${c.interesMensual > 0 ? `
+        <a class="gcard" href="presta.html" style="text-decoration:none;color:inherit;display:block">
+            <div class="px-5 py-4 flex items-center gap-3">
+                <span class="passive">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                    ${money0(c.interesMensual)}/mes
+                </span>
+                <span class="flex-1 text-[13px] font-semibold" style="color:var(--ink-2)">
+                    Interés de ${c.nPrestamos} préstamo${c.nPrestamos === 1 ? '' : 's'}
+                </span>
+                <svg class="grow-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+            </div>
+        </a>` : ''}
+
+        ${c.administraAlgo ? `
+        <a class="gcard" href="${c.capitalAdministrado > 0 ? 'presta.html' : 'fiado.html'}" style="text-decoration:none;color:inherit;display:block">
+            <div class="px-5 py-4 flex items-center gap-3.5">
+                <span class="mono-tile" style="background:var(--accent-soft);color:var(--accent)">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20v-1.2A4.3 4.3 0 0 1 6.8 14.5h4.4a4.3 4.3 0 0 1 4.3 4.3V20"/><path d="M17.5 5.4a3 3 0 0 1 0 5.8"/></svg>
+                </span>
+                <span class="flex-1 min-w-0">
+                    <span class="block text-[15px] font-extrabold">Administro para otros</span>
+                    <span class="block text-[12.5px] mt-0.5" style="color:var(--ink-3)">
+                        ${money0(c.capitalAdministrado + c.fiadoAjeno)} · fuera de tus números
+                    </span>
+                </span>
+                ${c.vencidasAjenas > 0 ? `<span class="badge" style="background:var(--neg-soft);color:var(--neg)">${c.vencidasAjenas}</span>` : ''}
+                <svg class="grow-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+            </div>
+        </a>` : ''}
+
+        <a class="gcard" href="analisis.html" style="text-decoration:none;color:inherit;display:block">
+            <div class="px-5 py-4 flex items-center gap-3.5">
+                <span class="mono-tile" style="background:var(--brand-soft);color:var(--brand-text)">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 8.5 8.5H12Z" fill="currentColor" stroke="none"/></svg>
+                </span>
+                <span class="flex-1 min-w-0">
+                    <span class="block text-[15px] font-extrabold">Salud financiera</span>
+                    <span class="block text-[12.5px] mt-0.5" style="color:var(--ink-3)">${esc(R.nivel.txt)} · ${R.total} de 100</span>
+                </span>
+                <svg class="grow-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+            </div>
+        </a>
 
         <div>
             <p class="sec-title">Módulos</p>
@@ -266,7 +310,8 @@ function render() {
                        c.ingresos || c.gastos ? 'me queda al mes' : 'Sin registrar',
                        c.disponible >= 0 ? 'var(--pos)' : 'var(--neg)', c.disponible >= 0 ? 'var(--pos-soft)' : 'var(--neg-soft)')}
                 ${tile('presta.html', ICO.presta, 'Préstamos', c.capitalPrestado > 0 ? money0(c.capitalPrestado) : '—',
-                       c.capitalPrestado > 0 ? `+${money0(c.interesMensual)}/mes de interés` : 'Sin préstamos',
+                       c.capitalPrestado > 0 ? `+${money0(c.interesMensual)}/mes de interés`
+                       : c.capitalAdministrado > 0 ? `${money0(c.capitalAdministrado)} de otros` : 'Sin préstamos',
                        'var(--accent)', 'var(--brand-soft)', c.cuotasVencidasP > 0)}
                 ${(() => {
                     const neto = c.ahorroRondas - c.deudaRondas;
@@ -279,36 +324,6 @@ function render() {
                         c.rondasAtrasadas > 0);
                 })()}
             </div>
-        </div>
-
-        <div>
-            <p class="sec-title">Registrar movimiento</p>
-            <div class="grid grid-cols-2 gap-3">
-                <button class="btn btn-primary" style="padding:14px" data-act="mov" data-type="in">
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-                    Ingreso
-                </button>
-                <button class="btn btn-outline" style="padding:14px" data-act="mov" data-type="out" ${D.fondos.length ? '' : 'disabled'}>
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
-                    Retiro
-                </button>
-            </div>
-            <section class="gcard mt-3">
-                <a class="grow" href="fiado.html" style="text-decoration:none;color:inherit">
-                    <span class="mono-tile" style="background:var(--brand-soft);color:var(--brand-text)">
-                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-                    </span>
-                    <span class="flex-1 text-[14.5px] font-semibold">Anotar algo que saqué fiado</span>
-                    <svg class="grow-chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
-                </a>
-                <a class="grow" href="financiacion.html" style="text-decoration:none;color:inherit">
-                    <span class="mono-tile" style="background:var(--sunk);color:var(--ink-2)">
-                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg>
-                    </span>
-                    <span class="flex-1 text-[14.5px] font-semibold">Marcar una cuota como pagada</span>
-                    <svg class="grow-chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
-                </a>
-            </section>
         </div>
     `);
     countUp($('#hero'), c.patrimonio);
@@ -501,6 +516,7 @@ document.addEventListener('click', (e) => {
 function mostrar() {
     if (listo) return;
     listo = true;
+    if (!document.querySelector('.bnav')) document.body.insertAdjacentHTML('beforeend', bottomNav('inicio'));
     $('#boot').classList.add('hidden');
     $('#app').classList.remove('hidden');
     saludo(); render();

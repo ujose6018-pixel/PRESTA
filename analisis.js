@@ -3,7 +3,7 @@
    Puntúa 0-100 en cinco áreas usando los datos de todos los
    módulos. Es determinista: mismos datos, mismo resultado.
    ============================================================ */
-import { money, money0, cuotaDue, diasEntre, monthKey, isoToDate, rondaInfo } from './core.js';
+import { money, money0, cuotaDue, diasEntre, monthKey, isoToDate, rondaInfo, esTercero } from './core.js';
 
 const cl = (v, a = 0, b = 100) => Math.min(b, Math.max(a, v));
 /** Interpola lineal entre dos puntos y recorta a 0-100. */
@@ -37,8 +37,11 @@ export function analizar(D) {
             ? (p.savedItems || []).reduce((x, n) => x + Number(n), 0)
             : (p.deposits || []).reduce((x, d) => x + Number(d.amount || 0), 0)), 0);
 
-    const deudaFiado = fiado.reduce((a, c) =>
-        a + (c.entries || []).reduce((x, e) => x + (e.type === 'payment' ? -Number(e.amount || 0) : Number(e.amount || 0)), 0), 0);
+    /* Las cuentas de otras personas se administran pero no son deuda propia. */
+    const saldoCuenta = (c) => (c.entries || []).reduce((x, e) => x + (e.type === 'payment' ? -Number(e.amount || 0) : Number(e.amount || 0)), 0);
+    const deudaFiado    = fiado.filter(c => !esTercero(c)).reduce((a, c) => a + saldoCuenta(c), 0);
+    const fiadoAjeno    = fiado.filter(esTercero).reduce((a, c) => a + saldoCuenta(c), 0);
+    const nFiadoAjeno   = fiado.filter(esTercero).length;
 
     const nCuotas = (i) => Number(i.installments) || 1;
     const montoCuota = (i) => Number(i.installmentAmount) || (Number(i.total) || 0) / nCuotas(i);
@@ -52,15 +55,26 @@ export function analizar(D) {
 
     /* --- Cartera de préstamos (dinero que me deben) --- */
     const perMes = (f) => f === 'quincenal' ? 2 : 4.33;   // periodos por mes
-    const vivos = prestamos.filter(p => Number(p.currentCapital || 0) > 0);
-    const capitalPrestado = vivos.reduce((a, p) => a + Number(p.currentCapital || 0), 0);
+    const todosVivos = prestamos.filter(p => Number(p.currentCapital || 0) > 0);
+    /* Solo el capital propio es un activo tuyo. El de terceros se administra. */
+    const vivos = todosVivos.filter(p => !esTercero(p));
+    const vivosAjenos = todosVivos.filter(esTercero);
+    const capitalPrestado    = vivos.reduce((a, p) => a + Number(p.currentCapital || 0), 0);
+    const capitalAdministrado = vivosAjenos.reduce((a, p) => a + Number(p.currentCapital || 0), 0);
 
     let interesMensual = 0, cuotasVencidasP = 0, cuotasPagadasP = 0, capitalEnMora = 0, proxCobro = 0;
+
+    /* De los préstamos ajenos solo entra tu comisión, si es que cobrás alguna. */
+    vivosAjenos.forEach(p => {
+        const base = (Number(p.currentCapital || 0) * Number(p.interestRate || 0)) / 100;
+        interesMensual += base * (Number(p.commissionRate || 0) / 100) * perMes(p.frequency);
+    });
+
     vivos.forEach(p => {
         const cap = Number(p.currentCapital || 0);
         const tasa = Number(p.interestRate || 0);
         const base = (cap * tasa) / 100;                  // interés de un periodo
-        interesMensual += base * perMes(p.frequency);
+        interesMensual += base * (1 - Number(p.commissionRate || 0) / 100) * perMes(p.frequency);
 
         const qs = Array.isArray(p.quotas) ? p.quotas : [];
         const pend = qs.filter(q => q.status === 'pending');
@@ -73,6 +87,13 @@ export function analizar(D) {
         });
         if (venc > 0) capitalEnMora += cap;
     });
+
+    /* Los atrasos de préstamos ajenos se muestran, pero no bajan tu nota:
+       el riesgo del capital no es tuyo. */
+    let vencidasAjenas = 0;
+    vivosAjenos.forEach(p => (Array.isArray(p.quotas) ? p.quotas : []).forEach(q => {
+        if (q.status !== 'paid' && diasEntre(new Date(), new Date(q.date + 'T12:00:00')) < 0) vencidasAjenas++;
+    }));
 
     const totalCuotasP = cuotasPagadasP + cuotasVencidasP;
     /* Salud de cobro: 1 = todos pagan puntual, 0 = nadie paga */
@@ -255,6 +276,9 @@ export function analizar(D) {
     if (hayCartera && interesMensual > 0 && gastos > 0 && interesMensual >= gastos)
         rec.push({ p: 4, t: 'El interés ya cubre tus gastos', d: `Los ${money0(interesMensual)} mensuales que generan tus préstamos alcanzan para tus gastos del mes. Eso es independencia, cuídala cobrando puntual.`, link: 'presta.html' });
 
+    if (vencidasAjenas > 0)
+        rec.push({ p: 2, t: 'Cobros atrasados que administrás', d: `${vencidasAjenas} cuota${vencidasAjenas === 1 ? '' : 's'} sin cobrar en préstamos de capital ajeno. No es tu plata, pero sí tu responsabilidad frente a quien la puso.`, link: 'presta.html' });
+
     rec.sort((a, b) => a.p - b.p);
 
     return {
@@ -264,7 +288,10 @@ export function analizar(D) {
                   colchon, colchonLiquido, metaColchon, vencidas, verdes, mesesRegistrados: meses.length, empleo,
                   ahorroRondas, deudaRondas, cuotaRondas, rondasAtrasadas,
                   nRondasAhorro: rondasAhorro.length, nRondasDeuda: rondasDeuda.length,
-                  capitalPrestado, interesMensual, proxCobro, cuotasVencidasP, capitalEnMora,
+                  capitalPrestado, capitalAdministrado, fiadoAjeno, nFiadoAjeno, vencidasAjenas,
+                  nPrestamosAjenos: vivosAjenos.length,
+                  administraAlgo: capitalAdministrado > 0 || fiadoAjeno > 0,
+                  interesMensual, proxCobro, cuotasVencidasP, capitalEnMora,
                   concentracion, saludCobro, nPrestamos: vivos.length, hayCartera,
                   patrimonio: ahorroTotal + capitalPrestado - deudaTotal }
     };
@@ -282,7 +309,9 @@ export function resumenParaIA(r) {
         disponible_mensual: Math.round(c.disponible),
         ahorro_total: Math.round(c.ahorroTotal),
         porcentaje_del_ahorro_en_efectivo_fisico: Math.round((1 - c.bancarizado) * 100),
-        capital_prestado_a_terceros: Math.round(c.capitalPrestado),
+        capital_propio_prestado: Math.round(c.capitalPrestado),
+        capital_de_otros_que_administra: Math.round(c.capitalAdministrado),
+        fiado_de_otros_que_administra: Math.round(c.fiadoAjeno),
         interes_mensual_por_prestamos: Math.round(c.interesMensual),
         cuotas_de_prestamos_sin_cobrar: c.cuotasVencidasP,
         numero_de_deudores: c.nPrestamos,

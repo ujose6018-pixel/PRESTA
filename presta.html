@@ -8,14 +8,14 @@
 <link rel="icon" type="image/svg+xml" href="icons/mark.svg">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<meta name="theme-color" content="#C41E30">
+<meta name="theme-color" content="#7B2CBF">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Préstamos">
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="theme.css">
 <script>(function(){var s=localStorage.getItem("mf-theme");document.documentElement.dataset.theme=s?s:(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");})();</script>
-<style>body{padding-bottom:26px;background:var(--paper)}</style>
+<style></style>
 </head>
 <body>
 
@@ -61,6 +61,10 @@
             </div>
         </div>
     </div>
+    <button class="fab" data-act="nuevo">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        Nuevo préstamo
+    </button>
     <main class="wrap py-5">
         <section id="v-list"></section>
         <section id="v-detail" class="hidden"></section>
@@ -70,8 +74,9 @@
 <script type="module">
 import { db, COL, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc, query,
          $, esc, money, money0, monogram, tint, flong, fmid, todayStr, isoToDate, diasEntre,
-         notice, openDialog, closeDialog, askConfirm, num, dialogFooter, bootShell, shellHeader,
-         saludo, swapView, countUp } from './core.js';
+         notice, openDialog, closeDialog, askConfirm, num, dialogFooter, bootShell, mountShell,
+         saludo, swapView, countUp,
+         esTercero, duenoDe, badgeTercero, selectorTitular, leerTitular, clicTitular } from './core.js';
 
 let prestamos = [], route = { view: 'list', id: null };
 const AVISO = 5;
@@ -85,7 +90,12 @@ const saldado   = (p) => capital(p) <= 0;
 const interesBase = (p) => (capital(p) * tasa(p)) / 100;
 const interesDe = (p, q) => interesBase(p) * (Number(q.interestMultiplier) || 1);
 const comisionDe = (p, q) => interesDe(p, q) * (comision(p) / 100);
-const netoDe    = (p, q) => interesDe(p, q) - comisionDe(p, q);
+/* Qué proporción del rédito termina en tu bolsillo:
+   - capital propio: todo menos la comisión que se lleva el intermediario
+   - capital de otro: solo tu comisión, el resto es del dueño del dinero */
+const factorMio  = (p) => esTercero(p) ? comision(p) / 100 : 1 - comision(p) / 100;
+const netoDe     = (p, q) => interesDe(p, q) * factorMio(p);
+const netoDueno  = (p, q) => esTercero(p) ? interesDe(p, q) - netoDe(p, q) : 0;
 
 const proxima = (p) => cuotas(p).find(q => q.status === 'pending') || null;
 const pagadas = (p) => cuotas(p).filter(q => q.status === 'paid');
@@ -93,10 +103,14 @@ const cobrado = (p) => pagadas(p).reduce((a, q) => a + netoDe(p, q), 0);
 const vencidas = (p) => cuotas(p).filter(q => q.status === 'pending' && diasEntre(new Date(), new Date(q.date + 'T12:00:00')) < 0).length;
 
 const activos = () => prestamos.filter(p => !saldado(p));
-const capitalTotal = () => activos().reduce((a, p) => a + capital(p), 0);
+const mios    = () => activos().filter(p => !esTercero(p));
+const ajenos  = () => activos().filter(esTercero);
+/* Solo el capital propio es tuyo. El de terceros se administra, no se posee. */
+const capitalTotal        = () => mios().reduce((a, p) => a + capital(p), 0);
+const capitalAdministrado = () => ajenos().reduce((a, p) => a + capital(p), 0);
 const proximoCobro = () => activos().reduce((a, p) => { const q = proxima(p); return a + (q ? netoDe(p, q) : 0); }, 0);
 const porMes = (p) => p.frequency === 'quincenal' ? 2 : 4.33;
-const interesMensual = () => activos().reduce((a, p) => a + interesBase(p) * (1 - comision(p) / 100) * porMes(p), 0);
+const interesMensual = () => activos().reduce((a, p) => a + interesBase(p) * factorMio(p) * porMes(p), 0);
 
 function alertas() {
     return activos().map(p => {
@@ -127,7 +141,8 @@ const render = () => route.view === 'list' ? renderList() : renderDetail();
 
 /* ---------------- Lista ---------------- */
 function renderList() {
-    const al = activos(), fin = prestamos.filter(saldado), av = alertas();
+    const al = mios(), adm = ajenos(), fin = prestamos.filter(saldado), av = alertas();
+    const admCap = capitalAdministrado();
 
     swapView($('#v-list'), `
         ${av.length ? `
@@ -156,8 +171,8 @@ function renderList() {
                 <div class="px-4 pt-4 pb-4">
                     <p class="tag">Capital en la calle</p>
                     <p class="num text-[30px] leading-none mt-2" style="color:var(--accent)" id="hero">L 0.00</p>
-                    <p class="text-[12px] mt-2" style="color:var(--ink-3)">
-                        ${al.length ? `${al.length} préstamo${al.length === 1 ? '' : 's'} activo${al.length === 1 ? '' : 's'}` : 'Sin préstamos activos'}
+                    <p class="text-[12px] mt-2 font-semibold" style="opacity:.75">
+                        ${al.length ? `${al.length} préstamo${al.length === 1 ? '' : 's'} con tu capital` : 'Sin capital propio prestado'}
                     </p>
                     ${interesMensual() > 0 ? `
                     <div class="mt-4 pt-3.5" style="border-top:1px solid var(--rule)">
@@ -169,17 +184,14 @@ function renderList() {
                 </div>
                 <div class="kpi">
                     <div><p class="tag">Próximo cobro</p><p class="num text-[14.5px] mt-1.5 pos">${money(proximoCobro())}</p></div>
-                    <div><p class="tag">Activos</p><p class="num text-[14.5px] mt-1.5">${al.length}</p></div>
-                    <div><p class="tag">Saldados</p><p class="num text-[14.5px] mt-1.5">${fin.length}</p></div>
+                    <div><p class="tag">Míos</p><p class="num text-[14.5px] mt-1.5">${al.length}</p></div>
+                    <div><p class="tag">Administro</p><p class="num text-[14.5px] mt-1.5">${adm.length}</p></div>
                 </div>
             </section>
         </div>
 
         <div>
-            <div class="flex items-center justify-between">
-                <p class="sec-title">Préstamos activos</p>
-                <button class="text-[13px] font-semibold mb-2" data-act="nuevo" style="color:var(--brand-text)">+ Nuevo préstamo</button>
-            </div>
+            <p class="sec-title">Con mi capital</p>
             ${al.length ? `<section class="gcard">${al.map(fila).join('')}</section>` : `
             <section class="gcard"><div class="px-4 py-5">
                 <h2 class="text-[16px] font-semibold mb-2">Sin préstamos activos</h2>
@@ -189,6 +201,20 @@ function renderList() {
                 <button class="btn btn-primary" data-act="nuevo">Registrar préstamo</button>
             </div></section>`}
         </div>
+
+        ${adm.length ? `<div>
+            <p class="sec-title">Préstamos que administro</p>
+            <section class="gcard">
+                ${adm.map(fila).join('')}
+                <div class="gfoot">
+                    <p class="text-[12.5px]" style="color:var(--ink-2);line-height:1.6">
+                        El capital lo pone otra persona: <span class="num">${money(admCap)}</span> en la calle.
+                        <b>No cuenta como tuyo</b> ni en el patrimonio ni en la salud financiera —
+                        aquí solo llevás el control de lo que se prestó por medio tuyo.
+                    </p>
+                </div>
+            </section>
+        </div>` : ''}
 
         ${fin.length ? `<div>
             <p class="sec-title">Saldados</p>
@@ -204,9 +230,10 @@ function fila(p) {
     return `<button class="grow" data-act="abrir" data-id="${p.id}">
         <span class="mono-tile" style="background:${fin ? 'var(--pos-soft)' : tint('#17436F', .12)};color:${fin ? 'var(--pos)' : 'var(--accent)'}">${esc(monogram(p.clientName))}</span>
         <span class="flex-1 min-w-0">
-            <span class="flex items-center gap-2 mb-1">
-                <span class="text-[15px] font-semibold truncate">${esc(p.clientName)}</span>
-                ${v > 0 ? `<span class="badge" style="background:var(--neg-soft);color:var(--neg);border-color:transparent">${v} atrasada${v === 1 ? '' : 's'}</span>` : ''}
+            <span class="flex items-center gap-2 mb-1 flex-wrap">
+                <span class="text-[15px] font-extrabold truncate">${esc(p.clientName)}</span>
+                ${badgeTercero(p)}
+                ${v > 0 ? `<span class="badge" style="background:var(--neg-soft);color:var(--neg)">${v} atrasada${v === 1 ? '' : 's'}</span>` : ''}
             </span>
             <span class="block text-[12px] mb-1.5" style="color:var(--ink-3)">
                 ${fin ? 'Capital recuperado' : `${tasa(p)}% ${p.frequency === 'quincenal' ? 'quincenal' : 'semanal'}${q ? ` · próximo ${fmid(q.date + 'T12:00:00')}` : ''}`}
@@ -262,7 +289,7 @@ function renderDetail() {
                         <div class="flex items-center gap-3 min-w-0">
                             <span class="mono-tile" style="background:${fin ? 'var(--pos-soft)' : tint('#17436F', .12)};color:${fin ? 'var(--pos)' : 'var(--accent)'}">${esc(monogram(p.clientName))}</span>
                             <div class="min-w-0">
-                                <h1 class="text-[17px] font-semibold truncate">${esc(p.clientName)}</h1>
+                                <h1 class="text-[17px] font-extrabold truncate">${esc(p.clientName)}</h1>
                                 <p class="text-[12px]" style="color:var(--ink-3)">${p.intermediaryName ? 'Vía ' + esc(p.intermediaryName) + ' · ' : ''}desde el ${flong(p.startDate + 'T12:00:00')}</p>
                             </div>
                         </div>
@@ -270,11 +297,12 @@ function renderDetail() {
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                         </button>
                     </div>
-                    <p class="tag mt-5">${fin ? 'Capital recuperado' : 'Capital vivo'}</p>
+                    ${esTercero(p) ? `<div class="mt-4"><span class="badge" style="background:var(--accent-soft);color:var(--accent)">Capital de ${esc(duenoDe(p))}</span></div>` : ''}
+                    <p class="tag mt-5">${fin ? 'Capital recuperado' : esTercero(p) ? `Capital de ${esc(duenoDe(p))}` : 'Capital vivo'}</p>
                     <p class="num text-[30px] leading-none mt-2" style="color:${fin ? 'var(--pos)' : 'var(--accent)'}" id="hero2">L 0.00</p>
                     <div class="meter mt-4" style="max-width:320px"><i style="width:${pct}%;background:${fin ? 'var(--pos)' : 'var(--accent)'}"></i></div>
                     <p class="text-[12.5px] mt-2" style="color:var(--ink-3)">
-                        ${pagadas(p).length} de ${cuotas(p).length} cuotas cobradas · llevo <span class="num">${money(cobrado(p))}</span> de rédito neto
+                        ${pagadas(p).length} de ${cuotas(p).length} cuotas cobradas${esTercero(p) ? (cobrado(p) > 0 ? ` · llevás <span class="num">${money(cobrado(p))}</span> de comisión` : ' · sin comisión para vos') : ` · llevo <span class="num">${money(cobrado(p))}</span> de rédito neto`}
                     </p>
                 </div>
                 <div class="kpi">
@@ -283,9 +311,12 @@ function renderDetail() {
                     <div><p class="tag">Comisión</p><p class="num text-[14.5px] mt-1.5">${comision(p)}%</p></div>
                 </div>
                 ${q ? `<div class="gfoot">
-                    <p class="text-[12.5px]" style="color:var(--ink-2)">
-                        Próxima cuota: rédito <span class="num">${money(interesDe(p, q))}</span>${comision(p) > 0 ? ` menos comisión <span class="num">${money(comisionDe(p, q))}</span>` : ''} =
-                        <span class="num font-semibold" style="color:var(--ink)">${money(netoDe(p, q))}</span> para vos
+                    <p class="text-[12.5px]" style="color:var(--ink-2);line-height:1.6">
+                        ${esTercero(p)
+                          ? `Próxima cuota: rédito <span class="num">${money(interesDe(p, q))}</span> ·
+                             <span class="num" style="color:var(--ink)">${money(netoDueno(p, q))}</span> para ${esc(duenoDe(p))}${netoDe(p, q) > 0 ? ` · <span class="num" style="color:var(--ink)">${money(netoDe(p, q))}</span> para vos` : ' · vos no cobrás comisión'}`
+                          : `Próxima cuota: rédito <span class="num">${money(interesDe(p, q))}</span>${comision(p) > 0 ? ` menos comisión <span class="num">${money(comisionDe(p, q))}</span>` : ''} =
+                             <span class="num font-extrabold" style="color:var(--ink)">${money(netoDe(p, q))}</span> para vos`}
                     </p>
                 </div>` : ''}
             </section>
@@ -321,6 +352,7 @@ function dlgNuevo() {
             <input id="pName" class="field" maxlength="40" placeholder="Nombre del cliente" data-autofocus></div>
         <div><label class="label" for="pInter">Intermediario <span class="hint">— opcional</span></label>
             <input id="pInter" class="field" maxlength="40" placeholder="Quién lo consiguió"></div>
+        ${selectorTitular('prestamo', 'mio', '')}
         <div class="grid grid-cols-2 gap-3">
             <div><label class="label" for="pCap">Capital</label>
                 <input id="pCap" class="field field-num" type="number" step="0.01" inputmode="decimal" placeholder="0.00"></div>
@@ -333,21 +365,29 @@ function dlgNuevo() {
                     <option value="semanal">Semanal</option>
                     <option value="quincenal">Quincenal</option>
                 </select></div>
-            <div><label class="label" for="pComm">Comisión <span class="hint">— del rédito</span></label>
+            <div><label class="label" for="pComm"><span id="pCommLbl">Comisión</span> <span class="hint">— % del rédito</span></label>
                 <input id="pComm" class="field field-num" type="number" step="0.1" inputmode="decimal" placeholder="0"></div>
         </div>
         <div><label class="label" for="pStart">Fecha de entrega</label>
             <input id="pStart" class="field" type="date" value="${todayStr()}"></div>
-        <div class="px-3 py-3" style="background:var(--sunk);border-radius:8px">
-            <p class="text-[13px]" style="color:var(--ink-2)">Cobrarías <span class="num font-semibold" id="pPrev" style="color:var(--ink)">L 0.00</span> por periodo, ya descontada la comisión.</p>
+        <div class="px-4 py-3.5" style="background:var(--sunk);border-radius:14px">
+            <p class="text-[13px] font-semibold" style="color:var(--ink-2)" id="pPrevTxt"></p>
         </div>
         ${dialogFooter('save-new', 'Registrar préstamo')}
     </div>`);
     const upd = () => {
-        const neto = num('#pCap') * (num('#pRate') / 100) * (1 - num('#pComm') / 100);
-        $('#pPrev').textContent = money(neto);
+        const tercero = $('#tTitular')?.dataset.v === 'tercero';
+        const rendimiento = num('#pCap') * (num('#pRate') / 100);
+        const mio = rendimiento * (tercero ? num('#pComm') / 100 : 1 - num('#pComm') / 100);
+        const ajeno = rendimiento - mio;
+        $('#pCommLbl').textContent = tercero ? 'Tu comisión' : 'Comisión';
+        $('#pPrevTxt').innerHTML = tercero
+            ? `El rédito de <span class="num" style="color:var(--ink)">${money(rendimiento)}</span> por periodo es de quien puso el capital.
+               A vos te quedan <span class="num" style="color:var(--ink)">${money(mio)}</span>${mio <= 0 ? ' — solo llevás el control' : ''}.`
+            : `Cobrarías <span class="num" style="color:var(--ink)">${money(mio)}</span> por periodo, ya descontada la comisión${ajeno > 0 ? ` de ${money(ajeno)}` : ''}.`;
     };
     ['#pCap', '#pRate', '#pComm'].forEach(x => $(x).addEventListener('input', upd));
+    $('#tTitular').addEventListener('click', () => setTimeout(upd, 0));
     upd();
 }
 
@@ -407,7 +447,7 @@ async function crear() {
         const ref = await addDoc(collection(db, COL.prestamos), {
             clientName: name, intermediaryName: ($('#pInter').value || '').trim(),
             initialCapital: cap, currentCapital: cap, startDate: start, frequency: freq,
-            interestRate: rate, commissionRate: num('#pComm'),
+            interestRate: rate, commissionRate: num('#pComm'), ...leerTitular(),
             quotas: generarCuotas(start, freq), createdAt: new Date().toISOString()
         });
         closeDialog(); notice('Préstamo registrado', 'pos'); go('detail', ref.id);
@@ -422,7 +462,9 @@ async function marcar(id, qid) {
     const lista = cuotas(p).map(x => x.id === qid ? { ...x, status: era ? 'pending' : 'paid' } : x);
     try {
         await updateDoc(doc(db, COL.prestamos, id), { quotas: lista });
-        notice(era ? 'Cuota desmarcada' : `Cobraste ${money(netoDe(p, q))}`, era ? '' : 'pos');
+        notice(era ? 'Cuota desmarcada'
+             : esTercero(p) ? `Cuota cobrada · ${money(netoDueno(p, q))} para ${duenoDe(p)}`
+             : `Cobraste ${money(netoDe(p, q))}`, era ? '' : 'pos');
     } catch (e) { notice('No se pudo guardar: ' + e.message, 'neg'); }
 }
 
@@ -463,11 +505,12 @@ document.addEventListener('click', (e) => {
         case 'save-new':   crear(); break;
         case 'save-abono': abonar(id); break;
         case 'a-set': $('#aAmount').value = v; $('#aAmount').focus(); break;
+        case 'pick-titular': clicTitular(el); break;
     }
 });
 
 /* ---------------- Arranque ---------------- */
-$('#shell').innerHTML = shellHeader('Préstamos');
+mountShell('Préstamos', null);
 let listo = false;
 function mostrar() {
     if (listo) return;

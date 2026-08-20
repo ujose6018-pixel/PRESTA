@@ -8,14 +8,14 @@
 <link rel="icon" type="image/svg+xml" href="icons/mark.svg">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<meta name="theme-color" content="#C41E30">
+<meta name="theme-color" content="#7B2CBF">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Presupuesto">
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="theme.css">
 <script>(function(){var s=localStorage.getItem("mf-theme");document.documentElement.dataset.theme=s?s:(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");})();</script>
-<style>body{padding-bottom:26px;background:var(--paper)}</style>
+<style></style>
 </head>
 <body>
 
@@ -68,7 +68,7 @@
 
 <script type="module">
 import { db, COL, doc, setDoc, onSnapshot, $, esc, uid, money, money0, notice, openDialog,
-         closeDialog, askConfirm, num, dialogFooter, bootShell, shellHeader, saludo, swapView,
+         closeDialog, askConfirm, num, dialogFooter, bootShell, mountShell, saludo, swapView,
          countUp, flong } from './core.js';
 
 const REF = doc(db, COL.presupuesto, 'main');
@@ -316,7 +316,7 @@ document.addEventListener('click', (e) => {
 });
 
 /* ---------------- Arranque ---------------- */
-$('#shell').innerHTML = shellHeader('Ingresos y gastos');
+mountShell('Ingresos y gastos', null);
 let listo = false;
 function mostrar() {
     if (listo) return;

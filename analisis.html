@@ -8,7 +8,7 @@
 <link rel="icon" type="image/svg+xml" href="icons/mark.svg">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<meta name="theme-color" content="#C41E30">
+<meta name="theme-color" content="#7B2CBF">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Análisis">
@@ -16,7 +16,7 @@
 <link rel="stylesheet" href="theme.css">
 <script>(function(){var s=localStorage.getItem("mf-theme");document.documentElement.dataset.theme=s?s:(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");})();</script>
 <style>
-    body{padding-bottom:26px;background:var(--paper)}
+    
     .rec{display:flex;gap:12px;padding:14px 16px;border-top:1px solid var(--rule);align-items:flex-start}
     .rec:first-child{border-top:0}
     .rec-n{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;flex:none;font-family:var(--f-mono);font-size:11px;font-weight:600;background:var(--brand-soft);color:var(--brand-text);margin-top:1px}
@@ -78,7 +78,7 @@
 
 <script type="module">
 import { db, COL, collection, doc, onSnapshot, query, $, esc, money, money0, notice, openDialog,
-         closeDialog, bootShell, shellHeader, saludo, swapView, countUp, leer, guardar, flong, clamp } from './core.js';
+         closeDialog, bootShell, mountShell, saludo, swapView, countUp, leer, guardar, flong, clamp } from './core.js';
 import { analizar, resumenParaIA } from './analisis.js';
 
 const D = { fondos: [], metas: [], fiado: [], financiado: [], prestamos: [], rondas: [], presupuesto: {} };
@@ -203,6 +203,22 @@ function render() {
             </div></section>
         </div>` : ''}
 
+        ${c.administraAlgo ? `
+        <div>
+            <p class="sec-title">Lo que administro</p>
+            <section class="gcard"><div class="px-5 py-4">
+                <div class="space-y-2.5 text-[13.5px] font-semibold" style="color:var(--ink-2)">
+                    ${c.capitalAdministrado > 0 ? `<div class="flex justify-between"><span>Capital de otros prestado (${c.nPrestamosAjenos})</span><span class="num" style="color:var(--accent)">${money(c.capitalAdministrado)}</span></div>` : ''}
+                    ${c.fiadoAjeno > 0 ? `<div class="flex justify-between"><span>Fiado de otros (${c.nFiadoAjeno})</span><span class="num" style="color:var(--accent)">${money(c.fiadoAjeno)}</span></div>` : ''}
+                    ${c.vencidasAjenas > 0 ? `<div class="flex justify-between"><span>Cuotas sin cobrar</span><span class="num neg">${c.vencidasAjenas}</span></div>` : ''}
+                </div>
+                <p class="text-[12.5px] mt-4 pt-3.5" style="border-top:1px solid var(--rule);color:var(--ink-2);line-height:1.6">
+                    Este dinero <b>no es tuyo</b> y por eso queda fuera de tu patrimonio, tus ingresos y tu puntuación.
+                    Aparece acá solo para que sepas cuánto estás moviendo por cuenta de otras personas.
+                </p>
+            </div></section>
+        </div>` : ''}
+
         ${R.rec.length ? `<div>
             <p class="sec-title">Qué hacer ahora</p>
             <section class="gcard">
@@ -224,13 +240,13 @@ function render() {
                     ${ia ? `
                         <div class="ia-txt" id="ia-out">${ia.html}</div>
                         <div class="flex items-center justify-between mt-4 pt-3" style="border-top:1px solid var(--rule)">
-                            <span class="text-[11.5px]" style="color:var(--ink-3)">Generado el ${flong(ia.fecha)}</span>
+                            <span class="text-[11.5px]" style="color:var(--ink-3)">Generado el ${flong(ia.fecha)}${ia.modelo ? ' · ' + esc(ia.modelo) : ''}</span>
                             <button class="btn btn-outline btn-sm" data-act="ia">Volver a analizar</button>
                         </div>`
                     : `
                         <p class="text-[13.5px] mb-4" style="color:var(--ink-2);line-height:1.65">
                             La evaluación de arriba se calcula en tu teléfono y no necesita internet.
-                            Si quieres además una lectura escrita de tu situación, puedes conectar Gemini con tu propia llave.
+                            Si querés además una lectura escrita de tu situación, podés conectar Gemini con tu propia llave.
                         </p>
                         <button class="btn btn-primary" data-act="ia">Generar lectura</button>`}
                 </div>
@@ -265,6 +281,33 @@ function render() {
 /* ---------------- Capa de IA (opcional) ---------------- */
 const KEY = 'mf-gemini-key';
 
+/* ---- Gemini · Interactions API ----
+   Un solo endpoint POST /v1beta/interactions. La respuesta no trae
+   `candidates` sino `steps`: una línea de tiempo con el razonamiento y
+   la salida. El texto final vive en los pasos `model_output`.
+   El header Api-Revision fija el esquema y evita romperse si cambia. */
+const GEMINI_URL      = 'https://generativelanguage.googleapis.com/v1beta/interactions';
+const GEMINI_REVISION = '2026-05-20';
+const GEMINI_MODEL    = 'gemini-3.7-flash';
+
+/** Saca el texto final de una interacción: la última tanda seguida de
+    pasos `model_output`, ignorando pensamiento y llamadas a herramientas. */
+function textoDeInteraccion(data) {
+    const steps = Array.isArray(data?.steps) ? data.steps : [];
+    const finales = [];
+    for (let i = steps.length - 1; i >= 0; i--) {
+        if (steps[i]?.type !== 'model_output') break;
+        finales.unshift(steps[i]);
+    }
+    const usar = finales.length ? finales : steps.filter(s => s?.type === 'model_output');
+    return usar
+        .flatMap(s => Array.isArray(s.content) ? s.content : [])
+        .filter(c => c?.type === 'text' && typeof c.text === 'string')
+        .map(c => c.text)
+        .join('')
+        .trim();
+}
+
 function dlgLlave() {
     openDialog(`
     <h2 class="text-[17px] font-semibold mb-2">Conectar Gemini</h2>
@@ -272,9 +315,14 @@ function dlgLlave() {
         Consigue una llave gratis en Google AI Studio. Se guarda solo en este teléfono, nunca en el repositorio ni en la nube.
     </p>
     <div class="px-3 py-3 mb-4" style="background:var(--sunk);border-radius:8px">
+        <p class="text-[12.5px] mb-2" style="color:var(--ink-2);line-height:1.6">
+            <b>Ten esto en cuenta:</b> en el plan gratuito, los términos de Google permiten usar lo que envías
+            para mejorar sus modelos. Por eso solo se mandan totales redondeados — nunca los nombres de tus fondos,
+            pulperías o deudores, ni el detalle de tus movimientos.
+        </p>
         <p class="text-[12.5px]" style="color:var(--ink-2);line-height:1.6">
-            <b>Ten esto en cuenta:</b> en el plan gratuito, Google puede usar lo que envías para entrenar sus modelos.
-            Por eso solo se mandan totales redondeados — nunca los nombres de tus fondos, pulperías ni el detalle de tus movimientos.
+            La consulta se manda con <span class="mono" style="font-size:11.5px">store: false</span>, así que Google no
+            guarda la conversación en sus servidores. Aun así, la protección de verdad es que los datos van anónimos.
         </p>
     </div>
     <div class="space-y-4">
@@ -294,7 +342,10 @@ function verLlave() {
     openDialog(`
     <h2 class="text-[17px] font-semibold mb-3">Esto es lo que se envía</h2>
     <pre style="background:var(--sunk);border-radius:8px;padding:12px;font-family:var(--f-mono);font-size:11.5px;line-height:1.65;overflow-x:auto;color:var(--ink-2)">${esc(JSON.stringify(resumenParaIA(R), null, 2))}</pre>
-    <p class="text-[12.5px] mt-3 mb-4" style="color:var(--ink-3);line-height:1.6">Solo totales. Ningún nombre, ninguna fecha, ningún movimiento individual.</p>
+    <p class="text-[12.5px] mt-3 mb-4" style="color:var(--ink-3);line-height:1.6">
+        Solo totales. Ningún nombre, ninguna fecha, ningún movimiento individual.
+        Se procesa con ${esc(GEMINI_MODEL)}.
+    </p>
     <div class="flex gap-2.5 justify-end">
         <button class="btn btn-outline" data-act="close-dialog">Cerrar</button>
         <button class="btn btn-primary" data-act="ia-run">Enviar y analizar</button>
@@ -326,21 +377,38 @@ Cierra con la única cosa más importante que debería hacer este mes.
 Datos: ${JSON.stringify(resumenParaIA(R))}`;
 
     try {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(key)}`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }],
-                                   generationConfig: { temperature: 0.7, maxOutputTokens: 700 } })
+        const res = await fetch(GEMINI_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-goog-api-key': key,
+                'Api-Revision': GEMINI_REVISION
+            },
+            body: JSON.stringify({
+                model: GEMINI_MODEL,
+                input: prompt,
+                /* Sin almacenamiento en los servidores de Google.
+                   Por defecto las interacciones se guardan; aquí no hace
+                   falta porque cada análisis es una sola pregunta. */
+                store: false
+            })
         });
         if (!res.ok) {
             const err = await res.json().catch(() => ({}));
-            throw new Error(res.status === 400 ? 'La llave no es válida'
-                          : res.status === 429 ? 'Se acabó la cuota gratis por hoy. Intenta mañana.'
-                          : (err?.error?.message || `Error ${res.status}`));
+            throw new Error(
+                  res.status === 400 || res.status === 401 || res.status === 403 ? 'La llave no es válida o no tiene permiso'
+                : res.status === 429 ? 'Se acabó la cuota gratis por hoy. Intentá mañana.'
+                : res.status === 404 ? 'Tu llave todavía no tiene acceso al API de Gemini'
+                : (err?.error?.message || `Error ${res.status}`));
         }
         const data = await res.json();
-        const txt = (data?.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('').trim();
+        if (data?.status === 'failed') throw new Error(data?.error?.message || 'Gemini no pudo completar el análisis');
+        const txt = textoDeInteraccion(data);
         if (!txt) throw new Error('No devolvió texto');
-        guardar('mf-ia-cache', { html: mdHtml(txt), fecha: new Date().toISOString(), score: R.total });
+        guardar('mf-ia-cache', {
+            html: mdHtml(txt), fecha: new Date().toISOString(),
+            score: R.total, modelo: data?.model || GEMINI_MODEL
+        });
         render();
         notice('Análisis generado', 'pos');
     } catch (e) {
@@ -370,7 +438,7 @@ document.addEventListener('click', (e) => {
 });
 
 /* ---------------- Arranque ---------------- */
-$('#shell').innerHTML = shellHeader('Análisis');
+mountShell('Análisis', null);
 let listo = false;
 function mostrar() {
     if (listo) return;
