@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Presupuesto">
 <script src="https://cdn.tailwindcss.com"></script>
-<link rel="stylesheet" href="theme.css?v=7">
+<link rel="stylesheet" href="theme.css?v=9">
 <script>(function(){var s=localStorage.getItem("mf-theme");document.documentElement.dataset.theme=s?s:(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");})();</script>
 <style></style>
 </head>
@@ -69,7 +69,7 @@
 <script type="module">
 import { db, COL, doc, setDoc, onSnapshot, $, esc, uid, money, money0, notice, openDialog,
          closeDialog, askConfirm, num, dialogFooter, bootShell, mountShell, saludo, swapView,
-         countUp, flong } from './core.js?v=7';
+         countUp, flong } from './core.js?v=9';
 
 const REF = doc(db, COL.presupuesto, 'main');
 const VACIO = { empleo: 'independiente', estabilidad: 'variable', ingresos: [], gastos: [], updatedAt: null };

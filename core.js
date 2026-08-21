@@ -34,7 +34,9 @@ export const COL = {
     rondas:      'rounds',
     fiado:       'credit_accounts',
     financiado:  'financed_items',
-    presupuesto: 'budget_profile'
+    personales:  'personal_debts',
+    presupuesto: 'budget_profile',
+    cripto:      'crypto_holdings'
 };
 export const MASTER_KEY = '2026';
 
@@ -250,6 +252,180 @@ export function cuotaDue(item, n) {
 /* ---------------- Almacenamiento local ---------------- */
 export const leer = (k, def = {}) => { try { const v = localStorage.getItem(k); return v === null ? def : JSON.parse(v); } catch { return def; } };
 export const guardar = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+
+/* ============================================================
+   Criptomonedas
+   Los precios NUNCA se guardan en Firestore: solo se guarda
+   cuánto tenés de cada moneda y en qué billetera. El valor se
+   consulta en vivo y se cachea en el teléfono, para que si te
+   quedás sin señal al menos veas el último dato conocido.
+
+   Las dos APIs son gratis y no piden llave:
+     precios  -> CoinGecko (respaldo: Binance)
+     dólar    -> exchange-api por jsDelivr (respaldo: open.er-api)
+   ============================================================ */
+const CACHE_CRIPTO = 'mf-cripto-cache';
+export const CRIPTO_REFRESCO = 60_000;   // un minuto
+
+/** Monedas comunes. `estable` marca las que valen ~1 dólar. */
+export const MONEDAS = [
+    { id: 'bitcoin',     sym: 'BTC',   nombre: 'Bitcoin',     bin: 'BTCUSDT'  },
+    { id: 'ethereum',    sym: 'ETH',   nombre: 'Ethereum',    bin: 'ETHUSDT'  },
+    { id: 'tether',      sym: 'USDT',  nombre: 'Tether',      bin: null, estable: true },
+    { id: 'usd-coin',    sym: 'USDC',  nombre: 'USD Coin',    bin: 'USDCUSDT', estable: true },
+    { id: 'binancecoin', sym: 'BNB',   nombre: 'BNB',         bin: 'BNBUSDT'  },
+    { id: 'solana',      sym: 'SOL',   nombre: 'Solana',      bin: 'SOLUSDT'  },
+    { id: 'ripple',      sym: 'XRP',   nombre: 'XRP',         bin: 'XRPUSDT'  },
+    { id: 'cardano',     sym: 'ADA',   nombre: 'Cardano',     bin: 'ADAUSDT'  },
+    { id: 'dogecoin',    sym: 'DOGE',  nombre: 'Dogecoin',    bin: 'DOGEUSDT' },
+    { id: 'tron',        sym: 'TRX',   nombre: 'TRON',        bin: 'TRXUSDT'  },
+    { id: 'litecoin',    sym: 'LTC',   nombre: 'Litecoin',    bin: 'LTCUSDT'  },
+    { id: 'avalanche-2', sym: 'AVAX',  nombre: 'Avalanche',   bin: 'AVAXUSDT' },
+    { id: 'chainlink',   sym: 'LINK',  nombre: 'Chainlink',   bin: 'LINKUSDT' },
+    { id: 'polkadot',    sym: 'DOT',   nombre: 'Polkadot',    bin: 'DOTUSDT'  },
+    { id: 'the-open-network', sym: 'TON', nombre: 'Toncoin',  bin: 'TONUSDT'  },
+    { id: 'shiba-inu',   sym: 'SHIB',  nombre: 'Shiba Inu',   bin: 'SHIBUSDT' },
+    { id: 'pepe',        sym: 'PEPE',  nombre: 'Pepe',        bin: 'PEPEUSDT' },
+    { id: 'near',        sym: 'NEAR',  nombre: 'NEAR',        bin: 'NEARUSDT' },
+    { id: 'bitcoin-cash',sym: 'BCH',   nombre: 'Bitcoin Cash',bin: 'BCHUSDT'  },
+    { id: 'dai',         sym: 'DAI',   nombre: 'Dai',         bin: null, estable: true }
+];
+export const monedaPorId = (id) => MONEDAS.find(m => m.id === id) || null;
+export const esEstable   = (id) => !!monedaPorId(id)?.estable;
+
+/** Billeteras y casas de cambio comunes en Honduras. */
+export const BILLETERAS = ['Binance', 'Trust Wallet', 'MetaMask', 'Coinbase', 'Bybit', 'OKX', 'Ledger', 'Otra'];
+
+export const leerCacheCripto = () => leer(CACHE_CRIPTO, null);
+
+/** Precios en dólares. Devuelve { [id]: { usd, cambio24 } }. */
+async function desdeCoinGecko(ids) {
+    const url = 'https://api.coingecko.com/api/v3/simple/price'
+              + `?ids=${encodeURIComponent(ids.join(','))}&vs_currencies=usd&include_24hr_change=true`;
+    const r = await fetch(url, { headers: { Accept: 'application/json' } });
+    if (!r.ok) throw new Error('CoinGecko ' + r.status);
+    const j = await r.json();
+    const out = {};
+    for (const id of ids) {
+        const v = j[id];
+        if (v && typeof v.usd === 'number') out[id] = { usd: v.usd, cambio24: Number(v.usd_24h_change) || 0 };
+    }
+    if (!Object.keys(out).length) throw new Error('CoinGecko sin datos');
+    return out;
+}
+
+/** Respaldo: Binance. Solo cubre las monedas que lista. */
+async function desdeBinance(ids) {
+    const pares = ids.map(monedaPorId).filter(m => m?.bin);
+    const out = {};
+    /* Las estables valen ~1 dólar; Binance no las cotiza contra sí mismas. */
+    ids.filter(esEstable).forEach(id => { out[id] = { usd: 1, cambio24: 0 }; });
+    if (pares.length) {
+        const simbolos = JSON.stringify(pares.map(m => m.bin));
+        const r = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbols=${encodeURIComponent(simbolos)}`);
+        if (!r.ok) throw new Error('Binance ' + r.status);
+        const j = await r.json();
+        (Array.isArray(j) ? j : []).forEach(t => {
+            const m = pares.find(x => x.bin === t.symbol);
+            if (m) out[m.id] = { usd: parseFloat(t.lastPrice) || 0, cambio24: parseFloat(t.priceChangePercent) || 0 };
+        });
+    }
+    if (!Object.keys(out).length) throw new Error('Binance sin datos');
+    return out;
+}
+
+/** Cuántos lempiras vale un dólar. */
+async function tipoCambioHNL() {
+    try {
+        const r = await fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json');
+        if (!r.ok) throw new Error('jsdelivr ' + r.status);
+        const j = await r.json();
+        const v = Number(j?.usd?.hnl);
+        if (v > 0) return v;
+        throw new Error('sin hnl');
+    } catch {
+        const r = await fetch('https://open.er-api.com/v6/latest/USD');
+        if (!r.ok) throw new Error('er-api ' + r.status);
+        const j = await r.json();
+        const v = Number(j?.rates?.HNL);
+        if (v > 0) return v;
+        throw new Error('sin HNL');
+    }
+}
+
+/**
+ * Trae precios y tipo de cambio. Nunca lanza: si todo falla devuelve
+ * el último cache con `fresco: false`, para que la pantalla siga sirviendo.
+ */
+export async function cotizar(ids) {
+    const cache = leerCacheCripto();
+    if (!ids.length) return { usd: {}, hnl: cache?.hnl || 0, ts: cache?.ts || 0, fresco: true, error: null };
+
+    let usd = null, error = null;
+    try { usd = await desdeCoinGecko(ids); }
+    catch (e1) {
+        try { usd = await desdeBinance(ids); error = 'respaldo'; }
+        catch (e2) { error = e1.message; }
+    }
+
+    let hnl = 0;
+    try { hnl = await tipoCambioHNL(); }
+    catch { hnl = cache?.hnl || 0; }
+
+    if (!usd) {
+        return cache
+            ? { ...cache, fresco: false, error: error || 'sin conexión' }
+            : { usd: {}, hnl, ts: 0, fresco: false, error: error || 'sin conexión' };
+    }
+    /* Se conservan precios viejos de monedas que esta vez no vinieron. */
+    const combinado = { ...(cache?.usd || {}), ...usd };
+    const dato = { usd: combinado, hnl, ts: Date.now() };
+    guardar(CACHE_CRIPTO, dato);
+    return { ...dato, fresco: true, error: error === 'respaldo' ? null : error };
+}
+
+/** Busca monedas fuera del catálogo, usando el buscador de CoinGecko. */
+export async function buscarMoneda(texto) {
+    const r = await fetch(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(texto)}`);
+    if (!r.ok) throw new Error('No se pudo buscar');
+    const j = await r.json();
+    return (j?.coins || []).slice(0, 8).map(c => ({
+        id: c.id, sym: (c.symbol || '').toUpperCase(), nombre: c.name, bin: null
+    }));
+}
+
+/** Cantidad de cripto: hasta 8 decimales, sin ceros de relleno. */
+export const cantCripto = (n) => {
+    const v = Number(n) || 0;
+    if (v === 0) return '0';
+    const dec = v >= 1000 ? 2 : v >= 1 ? 4 : 8;
+    return v.toFixed(dec).replace(/\.?0+$/, '');
+};
+
+/** Precio unitario en dólares, con decimales según la escala. */
+export const precioUSD = (n) => {
+    const v = Number(n) || 0;
+    if (v === 0) return '$0';
+    if (v >= 1000) return '$' + v.toLocaleString('en-US', { maximumFractionDigits: 0 });
+    if (v >= 1)    return '$' + v.toFixed(2);
+    if (v >= 0.01) return '$' + v.toFixed(4);
+    return '$' + v.toFixed(8).replace(/0+$/, '');
+};
+
+export const usdMoney = (n) => '$' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/** "hace 3 min" para el sello de actualización. */
+export const haceCuanto = (ts) => {
+    if (!ts) return 'nunca';
+    const s = Math.floor((Date.now() - ts) / 1000);
+    if (s < 10) return 'ahora mismo';
+    if (s < 60) return `hace ${s} s`;
+    const m = Math.floor(s / 60);
+    if (m < 60) return `hace ${m} min`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `hace ${h} h`;
+    return `hace ${Math.floor(h / 24)} d`;
+};
 
 /* ---------------- Avisos ---------------- */
 export function notice(msg, kind = '') {

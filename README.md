@@ -63,6 +63,70 @@ mucho peor de mantener.
 El cálculo vive completo en `rondaInfo()` dentro de `core.js`, y lo usan `ronda.html`,
 `financiacion.html`, `analisis.js` y el panel. Una sola fuente de verdad.
 
+## Criptomonedas
+
+En `Ahorros › Cripto`. Se guarda **solo cuánto tenés y dónde**; los precios nunca tocan Firestore.
+
+```js
+// crypto_holdings
+{ coinId: 'bitcoin', symbol: 'BTC', name: 'Bitcoin',
+  amount: 0.00532, wallet: 'Binance', cost: 250 }   // cost en USD, opcional
+```
+
+**APIs, todas gratis y sin llave:**
+
+| Dato | Principal | Respaldo |
+|---|---|---|
+| Precios | CoinGecko `simple/price` | Binance `ticker/24hr` |
+| Dólar a lempira | exchange-api por jsDelivr | `open.er-api.com` |
+| Buscar monedas | CoinGecko `search` | — |
+
+CoinGecko público permite de 5 a 15 llamadas por minuto y la app hace **una sola**, con todas las
+monedas en la misma petición. El refresco es cada 60 segundos y se detiene cuando la pestaña no
+está a la vista, para no gastar batería ni cuota.
+
+**Cuando falla la red**, `cotizar()` nunca lanza: devuelve el último precio guardado en
+`localStorage` marcado con `fresco: false`, y la pantalla muestra de cuándo es el dato.
+
+**En el análisis**, la cripto cuenta completa en el patrimonio pero no como colchón de emergencia:
+
+- Estables (USDT, USDC, DAI): entran **completas**, siguen al dólar.
+- Volátiles: entran **a la mitad**, porque pueden caer justo el día que necesités la plata.
+
+El tipo de cambio es de mercado. En una casa de cambio dan menos, y la app lo dice en pantalla.
+
+## Dos clases de deuda
+
+El módulo de Deudas maneja cosas que se comportan distinto:
+
+| | Artículo financiado | Deuda personal |
+|---|---|---|
+| Colección | `financed_items` | `personal_debts` |
+| Estructura | Cuotas fijas numeradas | Monto abierto con abonos |
+| Fechas | Día de corte mensual | Una fecha acordada, opcional |
+| Pagos | Marcar cuota N | Abonar lo que se pueda |
+| Cuota mensual | Suma | No suma (no tiene cuota fija) |
+
+La deuda personal se modela así:
+
+```js
+{
+  person: 'Mi mamá',
+  concept: 'Para la moto',      // opcional
+  amount: 5000,
+  date: '2026-06-01',
+  dueDate: '2026-12-01',        // opcional; si está, avisa 5 días antes
+  payments: [{ id, amount, date, note }]
+}
+```
+
+El saldo nunca se guarda: se recalcula restando los abonos del monto. Un abono mayor al saldo pide
+confirmación pero se permite, y el saldo queda en cero, nunca negativo.
+
+Ambas suman a la deuda total y al patrimonio. La diferencia está en la cuota mensual: un artículo
+financiado tiene cuota fija y entra en el cálculo; una deuda personal no, porque abonás lo que
+podés. Un compromiso con fecha vencida sí baja la puntuación de puntualidad.
+
 ## Titularidad: lo que administrás para otros
 
 No todo el dinero que pasa por la app es tuyo. Dos casos reales:

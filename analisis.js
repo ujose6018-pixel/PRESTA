@@ -3,14 +3,14 @@
    Puntúa 0-100 en cinco áreas usando los datos de todos los
    módulos. Es determinista: mismos datos, mismo resultado.
    ============================================================ */
-import { money, money0, cuotaDue, diasEntre, monthKey, isoToDate, rondaInfo, esTercero } from './core.js?v=7';
+import { money, money0, cuotaDue, diasEntre, monthKey, isoToDate, rondaInfo, esTercero } from './core.js?v=9';
 
 const cl = (v, a = 0, b = 100) => Math.min(b, Math.max(a, v));
 /** Interpola lineal entre dos puntos y recorta a 0-100. */
 const escala = (v, malo, bueno) => cl(((v - malo) / (bueno - malo)) * 100);
 
 export function analizar(D) {
-    const { fondos = [], metas = [], fiado = [], financiado = [], presupuesto = {}, prestamos = [], rondas = [] } = D;
+    const { fondos = [], metas = [], fiado = [], financiado = [], presupuesto = {}, prestamos = [], rondas = [], personales = [], cripto = [], cotCripto = null } = D;
 
     /* --- Bases --- */
     const movs = (f) => Array.isArray(f?.movements) ? f.movements : [];
@@ -51,7 +51,20 @@ export function analizar(D) {
     const deudaCuotas = activos.reduce((a, i) => a + Math.max(0, (Number(i.total) || 0) - pagadas(i).reduce((x, p) => x + Number(p.amount || montoCuota(i)), 0)), 0);
     const cuotaMes = activos.reduce((a, i) => a + montoCuota(i), 0) + cuotaRondas;
 
-    const deudaTotal = deudaFiado + deudaCuotas + deudaRondas;
+    /* Deudas personales: plata que le debo a un familiar o conocido.
+       No tienen cuota fija, así que suman al saldo pero no a la cuota mensual. */
+    const restaPersonal = (d) => Math.max(0, (Number(d.amount) || 0) -
+        (Array.isArray(d.payments) ? d.payments : []).reduce((a, p) => a + (Number(p.amount) || 0), 0));
+    const persActivas   = personales.filter(d => restaPersonal(d) > 0.005);
+    const deudaPersonal = persActivas.reduce((a, d) => a + restaPersonal(d), 0);
+
+    /* Compromisos con fecha ya vencida: pesan en la puntualidad. */
+    const personalesVencidas = persActivas.filter(d => {
+        if (!d.dueDate) return false;
+        return diasEntre(new Date(), new Date(d.dueDate + 'T12:00:00')) < 0;
+    }).length;
+
+    const deudaTotal = deudaFiado + deudaCuotas + deudaRondas + deudaPersonal;
 
     /* --- Cartera de préstamos (dinero que me deben) --- */
     const perMes = (f) => f === 'quincenal' ? 2 : 4.33;   // periodos por mes
@@ -106,8 +119,28 @@ export function analizar(D) {
     /* El capital prestado NO es dinero disponible: no se puede usar mañana
        en una emergencia y hay riesgo de que no lo devuelvan. Para el colchón
        cuenta con descuento, ajustado por qué tan bien le están pagando. */
+    /* ---------------- Criptomonedas ----------------
+       Se valoran con el último precio cacheado. Si no hay cache
+       (nunca abriste Cripto con señal) valen cero y se avisa.
+
+       Cuentan completas en el patrimonio, pero NO como colchón de
+       emergencia: una moneda volátil puede caer 30% justo el día que
+       la necesitás. Las estables sí, porque siguen al dólar. */
+    const precioDe   = (id) => Number(cotCripto?.usd?.[id]?.usd) || 0;
+    const valorCripto = (c) => (Number(c.amount) || 0) * precioDe(c.coinId);
+    const ESTABLES = ['tether', 'usd-coin', 'dai', 'first-digital-usd', 'true-usd', 'binance-usd'];
+    const criptoUSD    = cripto.reduce((a, c) => a + valorCripto(c), 0);
+    const criptoEstUSD = cripto.filter(c => ESTABLES.includes(c.coinId)).reduce((a, c) => a + valorCripto(c), 0);
+    const criptoVolUSD = criptoUSD - criptoEstUSD;
+    const tasaHNL      = Number(cotCripto?.hnl) || 0;
+    const criptoLps    = criptoUSD * tasaHNL;
+    const criptoSinPrecio = cripto.length > 0 && criptoUSD === 0;
+
+    /* Descuento por volatilidad: la estable entra entera, la volátil a la mitad. */
+    const criptoColchon = (criptoEstUSD + criptoVolUSD * 0.5) * tasaHNL;
+
     const factorLiquidez = 0.35 * saludCobro;
-    const ahorroEfectivo = ahorroTotal + capitalPrestado * factorLiquidez;
+    const ahorroEfectivo = ahorroTotal + capitalPrestado * factorLiquidez + criptoColchon;
 
     /* --- Presupuesto --- */
     const aMes = (m, f) => { const v = Number(m) || 0; return f === 'semanal' ? v * 4.33 : f === 'quincenal' ? v * 2 : f === 'anual' ? v / 12 : v; };
@@ -174,7 +207,7 @@ export function analizar(D) {
     });
 
     // 3. Puntualidad de pagos
-    const atrasos = vencidas + rondasAtrasadas;
+    const atrasos = vencidas + rondasAtrasadas + personalesVencidas;
     const puntualidad = totalMarcadas + vencidas === 0 ? null : (aTiempo / (totalMarcadas + vencidas)) * 100;
     areas.push({
         id: 'puntual', nombre: 'Puntualidad en pagos', peso: 20,
@@ -276,6 +309,15 @@ export function analizar(D) {
     if (hayCartera && interesMensual > 0 && gastos > 0 && interesMensual >= gastos)
         rec.push({ p: 4, t: 'El interés ya cubre tus gastos', d: `Los ${money0(interesMensual)} mensuales que generan tus préstamos alcanzan para tus gastos del mes. Eso es independencia, cuídala cobrando puntual.`, link: 'presta.html' });
 
+    if (criptoSinPrecio)
+        rec.push({ p: 3, t: 'Falta cotizar tus criptos', d: 'Tenés monedas anotadas pero nunca se pudieron consultar los precios. Abrí Ahorros › Cripto con señal para que se valoren.', link: 'ahorro.html' });
+
+    if (criptoVolUSD > 0 && ahorroTotal > 0 && criptoVolUSD * tasaHNL > ahorroTotal * 2)
+        rec.push({ p: 2, t: 'Mucho peso en cripto volátil', d: `Tenés ${money0(criptoVolUSD * tasaHNL)} en monedas que suben y bajan, contra ${money0(ahorroTotal)} en ahorro estable. Si necesitás plata de urgencia, puede que valgan menos ese día.`, link: 'ahorro.html' });
+
+    if (personalesVencidas > 0)
+        rec.push({ p: 1, t: 'Compromisos personales vencidos', d: `Pasaste la fecha que acordaste en ${personalesVencidas} deuda${personalesVencidas === 1 ? '' : 's'} con familiares o conocidos. Es la deuda que más caro cuesta en confianza.`, link: 'financiacion.html' });
+
     if (vencidasAjenas > 0)
         rec.push({ p: 2, t: 'Cobros atrasados que administrás', d: `${vencidasAjenas} cuota${vencidasAjenas === 1 ? '' : 's'} sin cobrar en préstamos de capital ajeno. No es tu plata, pero sí tu responsabilidad frente a quien la puso.`, link: 'presta.html' });
 
@@ -286,6 +328,7 @@ export function analizar(D) {
         cifras: { ahorroTotal, ahorroEfectivo, porLugar, enEfectivo, bancarizado, deudaTotal, deudaFiado, deudaCuotas, cuotaMes,
                   ingresos, ingresosDeclarados, gastos, disponible,
                   colchon, colchonLiquido, metaColchon, vencidas, verdes, mesesRegistrados: meses.length, empleo,
+                  deudaPersonal, nPersonales: persActivas.length, personalesVencidas,
                   ahorroRondas, deudaRondas, cuotaRondas, rondasAtrasadas,
                   nRondasAhorro: rondasAhorro.length, nRondasDeuda: rondasDeuda.length,
                   capitalPrestado, capitalAdministrado, fiadoAjeno, nFiadoAjeno, vencidasAjenas,
@@ -293,7 +336,8 @@ export function analizar(D) {
                   administraAlgo: capitalAdministrado > 0 || fiadoAjeno > 0,
                   interesMensual, proxCobro, cuotasVencidasP, capitalEnMora,
                   concentracion, saludCobro, nPrestamos: vivos.length, hayCartera,
-                  patrimonio: ahorroTotal + capitalPrestado - deudaTotal }
+                  criptoUSD, criptoLps, criptoEstUSD, criptoVolUSD, tasaHNL, nCripto: cripto.length, criptoSinPrecio,
+                  patrimonio: ahorroTotal + capitalPrestado + criptoLps - deudaTotal }
     };
 }
 
@@ -319,6 +363,9 @@ export function resumenParaIA(r) {
         deuda_en_rondas_ya_cobradas: Math.round(c.deudaRondas),
         semanas_de_ronda_atrasadas: c.rondasAtrasadas,
         deuda_fiado_pulperia: Math.round(c.deudaFiado),
+        deuda_personal_familiares: Math.round(c.deudaPersonal),
+        cripto_en_lempiras: Math.round(c.criptoLps),
+        cripto_estable_usd: Math.round(c.criptoEstUSD),
         deuda_cuotas_financiadas: Math.round(c.deudaCuotas),
         cuotas_mensuales: Math.round(c.cuotaMes),
         cuotas_vencidas: c.vencidas,

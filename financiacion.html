@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Financiación">
 <script src="https://cdn.tailwindcss.com"></script>
-<link rel="stylesheet" href="theme.css?v=7">
+<link rel="stylesheet" href="theme.css?v=9">
 <script>(function(){var s=localStorage.getItem("mf-theme");document.documentElement.dataset.theme=s?s:(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");})();</script>
 <style>
     body { padding-bottom: 26px; background: var(--paper); }
@@ -67,7 +67,7 @@
             </div>
         </div>
     </div>
-    <button class="fab" data-act="nuevo">
+    <button class="fab" data-act="agregar">
         <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
         Agregar deuda
     </button>
@@ -82,9 +82,9 @@ import { db, COL, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc, que
          $, esc, uid, money, money0, monogram, tint, flong, fmid, todayStr, isoToDate, dateToISO,
          cuotaDue, diasEntre, MESES, notice, openDialog, closeDialog, askConfirm, num, dialogFooter,
          bootShell, mountShell, saludo, swapView, countUp, leer, guardar,
-         rondaInfo, ESTADO_RONDA } from './core.js?v=7';
+         rondaInfo, ESTADO_RONDA } from './core.js?v=9';
 
-let items = [], rondas = [], route = { view: 'list', id: null };
+let items = [], rondas = [], personales = [], route = { view: 'list', id: null };
 const AVISO_DIAS = 5;   // cuántos días antes empieza el recordatorio
 
 /* ---------------- Cálculos ---------------- */
@@ -124,7 +124,26 @@ function deudasRonda() {
 const deudaRondas  = () => deudasRonda().reduce((a, x) => a + x.i.deuda, 0);
 const cuotaRondas  = () => deudasRonda().reduce((a, x) => a + x.i.cuota * 4.33, 0);   // semanal -> mensual
 
-const deudaTotal = () => activos().reduce((a, i) => a + restante(i), 0) + deudaRondas();
+/* ---------------- Deudas personales ----------------
+   Plata que le debo a un familiar o conocido. A diferencia de una compra
+   en cuotas, no tiene número fijo de pagos ni día de corte: se abona lo
+   que se puede, cuando se puede. Por eso el modelo es abierto. */
+const abonosDe   = (d) => Array.isArray(d?.payments) ? d.payments : [];
+const abonado    = (d) => abonosDe(d).reduce((a, p) => a + (Number(p.amount) || 0), 0);
+const montoDe    = (d) => Number(d?.amount) || 0;
+const restaDe    = (d) => Math.max(0, montoDe(d) - abonado(d));
+const saldada    = (d) => restaDe(d) <= 0.005;
+const persActivas = () => personales.filter(d => !saldada(d));
+const deudaPersonal = () => persActivas().reduce((a, d) => a + restaDe(d), 0);
+
+/** Días para la fecha acordada. null si no se pactó ninguna. */
+function plazoDe(d) {
+    if (!d?.dueDate) return null;
+    const dias = diasEntre(new Date(), new Date(d.dueDate + 'T12:00:00'));
+    return { dias, estado: dias < 0 ? 'late' : dias <= AVISO_DIAS ? 'soon' : 'ok' };
+}
+
+const deudaTotal = () => activos().reduce((a, i) => a + restante(i), 0) + deudaRondas() + deudaPersonal();
 const cuotaMensual = () => activos().reduce((a, i) => a + montoCuota(i), 0) + cuotaRondas();
 
 /** Cuotas vencidas o por vencer, ordenadas por urgencia. */
@@ -136,6 +155,12 @@ function alertas() {
     return [...deItems, ...deRondas].sort((a, b) => a.p.dias - b.p.dias);
 }
 
+function alertasPersonales() {
+    return persActivas().map(d => ({ d, pl: plazoDe(d) }))
+        .filter(x => x.pl && x.pl.estado !== 'ok')
+        .sort((a, b) => a.pl.dias - b.pl.dias);
+}
+
 const textoDias = (d) => d < 0 ? `vencida hace ${Math.abs(d)} día${Math.abs(d) === 1 ? '' : 's'}`
                        : d === 0 ? 'vence hoy' : d === 1 ? 'vence mañana' : `en ${d} días`;
 
@@ -144,7 +169,7 @@ function go(view, id = null, push = true) {
     route = { view, id };
     if (push) history.pushState({ view, id }, '');
     $('#v-list').classList.toggle('hidden', view !== 'list');
-    $('#v-detail').classList.toggle('hidden', view !== 'detail');
+    $('#v-detail').classList.toggle('hidden', view === 'list');
     window.scrollTo(0, 0);
     render();
 }
@@ -161,6 +186,9 @@ function renderList() {
     const act = activos();
     const fin = items.filter(terminado);
     const dr  = deudasRonda();
+    const pa  = persActivas();
+    const ps  = personales.filter(saldada);
+    const alPers = alertasPersonales();
 
     swapView($('#v-list'), `
         ${al.length ? `
@@ -207,7 +235,7 @@ function renderList() {
                 <div class="kpi">
                     <div><p class="tag">Cuota mensual</p><p class="num text-[14.5px] mt-1.5">${money(cuotaMensual())}</p></div>
                     <div><p class="tag">Artículos</p><p class="num text-[14.5px] mt-1.5">${act.length}</p></div>
-                    <div><p class="tag">Rondas</p><p class="num text-[14.5px] mt-1.5">${dr.length}</p></div>
+                    <div><p class="tag">Personales</p><p class="num text-[14.5px] mt-1.5">${pa.length}</p></div>
                 </div>
             </section>
         </div>
@@ -253,6 +281,25 @@ function renderList() {
                     </p>
                 </div>
             </section>
+        </div>` : ''}
+
+        <div>
+            <div class="flex items-center justify-between">
+                <p class="sec-title">Deudas personales</p>
+                <button class="text-[13px] font-extrabold mb-2.5" data-act="nuevo-personal" style="color:var(--brand-text)">+ Agregar</button>
+            </div>
+            ${pa.length ? pa.map(filaPersonal).join('') : `
+            <section class="gcard"><div class="px-5 py-6 text-center">
+                <p class="text-[14px] font-bold mb-1">Sin deudas personales</p>
+                <p class="text-[13px]" style="color:var(--ink-3);line-height:1.6">
+                    Lo que le debés a un familiar o conocido. Sin cuotas fijas: abonás lo que podés, cuando podés.
+                </p>
+            </div></section>`}
+        </div>
+
+        ${ps.length ? `<div>
+            <p class="sec-title">Deudas personales saldadas</p>
+            ${ps.map(filaPersonal).join('')}
         </div>` : ''}
 
         ${fin.length ? `<div>
@@ -310,6 +357,121 @@ function fila(it) {
             </div>`}
         </div>
     </div>`;
+}
+
+/** Tarjeta de una deuda personal. */
+function filaPersonal(d) {
+    const resta = restaDe(d), total = montoDe(d), ab = abonado(d);
+    const pct = total > 0 ? (ab / total) * 100 : 0;
+    const listo = saldada(d);
+    const pl = plazoDe(d);
+    return `<div class="gcard" style="margin-bottom:12px">
+        <div class="px-4 pt-4 pb-4">
+            <div class="flex items-start gap-3 mb-3">
+                <span class="mono-tile" style="background:${listo ? 'var(--pos-soft)' : tint(d.person).bg};color:${listo ? 'var(--pos)' : tint(d.person).fg}">
+                    ${monogram(d.person)}
+                </span>
+                <span class="flex-1 min-w-0">
+                    <span class="block text-[16px] font-extrabold truncate">${esc(d.person)}</span>
+                    <span class="block text-[13px] mt-0.5" style="color:var(--ink-3)">
+                        ${d.concept ? esc(d.concept) : `Desde el ${fmid((d.date || d.createdAt))}`}
+                    </span>
+                </span>
+                <button class="btn btn-quiet btn-sm flex-none" style="padding:6px 8px" data-act="abrir-personal" data-id="${d.id}" aria-label="Ver detalle">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="5" r="1.4" fill="currentColor"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/><circle cx="12" cy="19" r="1.4" fill="currentColor"/></svg>
+                </button>
+            </div>
+
+            <div class="flex justify-between items-baseline text-[13px] mb-2" style="color:var(--ink-2)">
+                <span>Abonado: <b class="num" style="color:var(--ink)">${money(ab)}</b></span>
+                <span>${listo ? 'Saldada' : 'Debo'}: <b class="num" style="color:${listo ? 'var(--pos)' : 'var(--neg)'}">${money(resta)}</b></span>
+            </div>
+            <div class="meter mb-3"><i style="width:${pct}%;${listo ? 'background:var(--pos)' : ''}"></i></div>
+
+            ${pl && !listo ? `
+            <div class="flex items-center gap-2 mb-3">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="${pl.estado === 'late' ? 'var(--neg)' : pl.estado === 'soon' ? 'var(--warn)' : 'var(--brand-text)'}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>
+                <span class="text-[13.5px] font-bold" style="color:${pl.estado === 'late' ? 'var(--neg)' : pl.estado === 'soon' ? 'var(--warn)' : 'var(--brand-text)'}">
+                    Acordado: ${fmid(d.dueDate + 'T12:00:00')}
+                </span>
+                <span class="text-[12.5px] ml-auto font-bold" style="color:${pl.estado === 'late' ? 'var(--neg)' : 'var(--ink-3)'}">${textoDias(pl.dias)}</span>
+            </div>` : ''}
+
+            ${listo ? `<span class="st st-ok">Saldada por completo</span>` : `
+            <div class="flex gap-2.5">
+                <button class="btn btn-outline flex-1" data-act="abrir-personal" data-id="${d.id}">Ver abonos</button>
+                <button class="btn btn-primary flex-1" data-act="abonar" data-id="${d.id}">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                    Abonar
+                </button>
+            </div>`}
+        </div>
+    </div>`;
+}
+
+/** Detalle: cuánto queda y el historial completo de abonos. */
+function renderDetallePersonal(d) {
+    const resta = restaDe(d), total = montoDe(d), ab = abonado(d);
+    const listo = saldada(d);
+    const pl = plazoDe(d);
+    const hist = [...abonosDe(d)].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    swapView($('#v-detail'), `
+        <button class="btn btn-quiet btn-sm mb-3" data-act="volver">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg>
+            Deudas
+        </button>
+
+        <section class="gcard hero">
+            <div class="px-5 py-5">
+                <div class="flex items-center gap-3 mb-4">
+                    <span class="mono-tile" style="background:rgba(255,255,255,.2);color:#fff">${monogram(d.person)}</span>
+                    <div class="min-w-0">
+                        <h1 class="text-[17px] font-extrabold truncate">${esc(d.person)}</h1>
+                        <p class="text-[12px]" style="opacity:.75">${d.concept ? esc(d.concept) + ' · ' : ''}desde el ${flong(d.date || d.createdAt)}</p>
+                    </div>
+                </div>
+                <p class="tag">${listo ? 'Ya no debo nada' : 'Me falta pagar'}</p>
+                <p class="num text-[34px] leading-none mt-1.5">${money(resta)}</p>
+                <div class="meter mt-4" style="background:rgba(255,255,255,.22)">
+                    <i style="width:${total > 0 ? (ab / total) * 100 : 0}%;background:#fff"></i>
+                </div>
+                <p class="text-[12.5px] mt-2.5 font-semibold" style="opacity:.8">
+                    Abonado ${money(ab)} de ${money(total)}${pl && !listo ? ` · acordado ${textoDias(pl.dias)}` : ''}
+                </p>
+            </div>
+            ${listo ? '' : `<div class="gfoot flex gap-2.5">
+                <button class="btn btn-outline flex-1" style="background:rgba(255,255,255,.16);color:#fff;border-color:rgba(255,255,255,.4)" data-act="editar-personal" data-id="${d.id}">Editar</button>
+                <button class="btn flex-1" style="background:#fff;color:var(--brand-deep)" data-act="abonar" data-id="${d.id}">Abonar</button>
+            </div>`}
+        </section>
+
+        <div>
+            <p class="sec-title">Abonos</p>
+            <section class="gcard">
+                ${hist.length ? hist.map(p => `
+                <div class="grow" style="cursor:default">
+                    <span class="mono-tile" style="background:var(--pos-soft);color:var(--pos)">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg>
+                    </span>
+                    <span class="flex-1 min-w-0">
+                        <span class="block text-[14.5px] font-bold">${flong(p.date)}</span>
+                        ${p.note ? `<span class="block text-[12px] mt-0.5" style="color:var(--ink-3)">${esc(p.note)}</span>` : ''}
+                    </span>
+                    <span class="text-right flex-none">
+                        <span class="num block text-[15px] pos">${money(p.amount)}</span>
+                        <button class="text-[11.5px] font-bold mt-0.5" data-act="borrar-abono" data-id="${d.id}" data-pid="${p.id}" style="color:var(--ink-3)">Quitar</button>
+                    </span>
+                </div>`).join('') : `
+                <div class="px-5 py-6 text-center">
+                    <p class="text-[13.5px]" style="color:var(--ink-3)">Todavía no has abonado nada.</p>
+                </div>`}
+            </section>
+        </div>
+
+        <div class="pt-1">
+            <button class="btn btn-danger btn-block" data-act="borrar-personal" data-id="${d.id}">Eliminar esta deuda</button>
+        </div>`);
 }
 
 /* ---------------- Detalle ---------------- */
@@ -407,6 +569,164 @@ function renderDetail() {
         </div>` : ''}
     `);
     countUp($('#hero2'), fin ? 0 : restante(it));
+}
+
+/** El botón flotante cubre los dos tipos, que son cosas distintas. */
+function dialogElegirTipo() {
+    openDialog(`
+    <h2 class="text-[19px] font-extrabold mb-1">Agregar deuda</h2>
+    <p class="text-[13.5px] mb-5" style="color:var(--ink-3)">¿De qué tipo?</p>
+    <div class="gcard" style="box-shadow:none;border:1px solid var(--rule)">
+        <button class="grow" data-act="nuevo">
+            <span class="mono-tile" style="background:var(--brand-soft);color:var(--brand-text)">
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3 10h18M7 14.5h4"/></svg>
+            </span>
+            <span class="flex-1 min-w-0">
+                <span class="block text-[15px] font-extrabold">Artículo financiado</span>
+                <span class="block text-[12.5px] mt-0.5" style="color:var(--ink-3)">Cuotas fijas con fecha de corte</span>
+            </span>
+            <svg class="grow-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+        </button>
+        <button class="grow" data-act="nuevo-personal">
+            <span class="mono-tile" style="background:var(--accent-soft);color:var(--accent)">
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.4"/><path d="M5 20v-1.4A4.6 4.6 0 0 1 9.6 14h4.8a4.6 4.6 0 0 1 4.6 4.6V20"/></svg>
+            </span>
+            <span class="flex-1 min-w-0">
+                <span class="block text-[15px] font-extrabold">Deuda personal</span>
+                <span class="block text-[12.5px] mt-0.5" style="color:var(--ink-3)">Con un familiar o conocido, sin cuotas fijas</span>
+            </span>
+            <svg class="grow-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+        </button>
+    </div>
+    <button class="btn btn-outline btn-block mt-4" data-act="close-dialog">Cancelar</button>`);
+}
+
+/* ---------------- Deudas personales: formularios ---------------- */
+
+/** Alta y edición. Un solo formulario para los dos casos. */
+function dialogPersonal(d = null) {
+    const editando = !!d;
+    openDialog(`
+        <h2 class="text-[19px] font-extrabold mb-1">${editando ? 'Editar deuda' : 'Nueva deuda personal'}</h2>
+        <p class="text-[13.5px] mb-5" style="color:var(--ink-3)">Plata que le debés a un familiar o conocido.</p>
+        <div class="space-y-4">
+            <div><label class="label" for="dPersona">¿A quién le debo?</label>
+                <input id="dPersona" class="field" maxlength="40" placeholder="Mi mamá, Don Beto..." value="${esc(d?.person || '')}"></div>
+            <div><label class="label" for="dConcepto">¿Para qué fue? <span class="hint">— opcional</span></label>
+                <input id="dConcepto" class="field" maxlength="60" placeholder="Para la moto, una emergencia..." value="${esc(d?.concept || '')}"></div>
+            <div class="split split-2">
+                <div><label class="label" for="dMonto">¿Cuánto me prestó?</label>
+                    <input id="dMonto" class="field field-num" type="number" step="0.01" inputmode="decimal" placeholder="0.00" value="${d ? montoDe(d) : ''}"></div>
+                <div><label class="label" for="dFecha">¿Cuándo?</label>
+                    <input id="dFecha" class="field" type="date" value="${d?.date || todayStr()}"></div>
+            </div>
+            <div><label class="label" for="dPlazo">¿Para cuándo quedaste de pagar? <span class="hint">— opcional</span></label>
+                <input id="dPlazo" class="field" type="date" value="${d?.dueDate || ''}">
+                <p class="hint mt-1.5">Si ponés fecha, te avisa ${AVISO_DIAS} días antes.</p></div>
+        </div>
+        ${dialogFooter(editando ? 'Guardar' : 'Agregar', editando ? `save-personal-edit" data-id="${d.id}` : 'save-personal-new')}`);
+    setTimeout(() => $('#dPersona')?.focus(), 80);
+}
+
+async function guardarPersonal(id = null) {
+    const person = ($('#dPersona').value || '').trim();
+    const monto  = num('#dMonto');
+    if (!person)    return notice('Escribí a quién le debés', 'neg');
+    if (monto <= 0) return notice('El monto debe ser mayor que cero', 'neg');
+
+    const datos = {
+        person,
+        concept: ($('#dConcepto').value || '').trim(),
+        amount: monto,
+        date: $('#dFecha').value || todayStr(),
+        dueDate: $('#dPlazo').value || ''
+    };
+    try {
+        if (id) {
+            await updateDoc(doc(db, COL.personales, id), datos);
+            notice('Deuda actualizada');
+        } else {
+            await addDoc(collection(db, COL.personales), { ...datos, payments: [], createdAt: new Date().toISOString() });
+            notice('Deuda agregada', 'pos');
+        }
+        closeDialog();
+    } catch (e) { notice('No se pudo guardar', 'neg'); console.error(e); }
+}
+
+/** Registrar un abono. Sugiere el saldo completo como atajo. */
+function dialogAbono(d) {
+    const resta = restaDe(d);
+    openDialog(`
+        <h2 class="text-[19px] font-extrabold mb-1">Abonar a ${esc(d.person)}</h2>
+        <p class="text-[13.5px] mb-5" style="color:var(--ink-3)">Te falta pagar <span class="num" style="color:var(--ink)">${money(resta)}</span>.</p>
+        <div class="space-y-4">
+            <div><label class="label" for="aMonto">¿Cuánto abonás?</label>
+                <input id="aMonto" class="field field-num" type="number" step="0.01" inputmode="decimal" placeholder="0.00">
+                <div class="flex gap-2 mt-2.5 flex-wrap">
+                    ${[100, 500, 1000].filter(v => v < resta).map(v => `<button type="button" class="chip btn-sm" data-act="a-set" data-v="${v}">${money0(v)}</button>`).join('')}
+                    <button type="button" class="chip btn-sm" data-act="a-set" data-v="${resta}">Todo (${money0(resta)})</button>
+                </div></div>
+            <div class="split split-2">
+                <div><label class="label" for="aFecha">Fecha</label>
+                    <input id="aFecha" class="field" type="date" value="${todayStr()}"></div>
+                <div><label class="label" for="aNota">Nota <span class="hint">— opcional</span></label>
+                    <input id="aNota" class="field" maxlength="40" placeholder="Efectivo, transferencia..."></div>
+            </div>
+        </div>
+        ${dialogFooter('Registrar abono', `save-abono" data-id="${d.id}`)}`);
+    setTimeout(() => $('#aMonto')?.focus(), 80);
+}
+
+async function guardarAbono(id) {
+    const d = personales.find(x => x.id === id);
+    if (!d) return;
+    const monto = num('#aMonto');
+    if (monto <= 0) return notice('El abono debe ser mayor que cero', 'neg');
+
+    const resta = restaDe(d);
+    if (monto > resta + 0.005) {
+        const sigue = await askConfirm({
+            titulo: 'Abono mayor a lo que debés',
+            texto: `Le debés ${money(resta)} pero vas a abonar ${money(monto)}. ¿Lo registro igual?`,
+            ok: 'Sí, registrar'
+        });
+        if (!sigue) return;
+    }
+    const abono = {
+        id: uid(), amount: monto,
+        date: $('#aFecha').value || todayStr(),
+        note: ($('#aNota').value || '').trim()
+    };
+    try {
+        await updateDoc(doc(db, COL.personales, id), { payments: [...abonosDe(d), abono] });
+        closeDialog();
+        const queda = Math.max(0, resta - monto);
+        notice(queda <= 0.005 ? `¡Saldaste con ${d.person}!` : `Abonado · quedan ${money(queda)}`, 'pos');
+    } catch (e) { notice('No se pudo registrar', 'neg'); console.error(e); }
+}
+
+async function borrarAbono(id, pid) {
+    const d = personales.find(x => x.id === id);
+    if (!d) return;
+    const sigue = await askConfirm({ titulo: '¿Quitar este abono?', texto: 'El saldo va a subir de nuevo.', ok: 'Quitar', peligro: true });
+    if (!sigue) return;
+    try {
+        await updateDoc(doc(db, COL.personales, id), { payments: abonosDe(d).filter(p => p.id !== pid) });
+        notice('Abono quitado');
+    } catch (e) { notice('No se pudo quitar', 'neg'); console.error(e); }
+}
+
+async function borrarPersonal(id) {
+    const d = personales.find(x => x.id === id);
+    if (!d) return;
+    const sigue = await askConfirm({
+        titulo: `¿Eliminar la deuda con ${d.person}?`,
+        texto: 'Se borra el registro y todos sus abonos. No se puede deshacer.',
+        ok: 'Eliminar', peligro: true
+    });
+    if (!sigue) return;
+    try { await deleteDoc(doc(db, COL.personales, id)); go('list'); notice('Deuda eliminada'); }
+    catch (e) { notice('No se pudo eliminar', 'neg'); console.error(e); }
 }
 
 /* ---------------- Formularios ---------------- */
@@ -568,9 +888,22 @@ function avisarHoy() {
 document.addEventListener('click', (e) => {
     const el = e.target.closest('[data-act]');
     if (!el || el.disabled) return;
-    const { act, id, n } = el.dataset;
+    const { act, id, n, pid, v } = el.dataset;
     switch (act) {
         case 'nuevo':  dlgItem(); break;
+        case 'agregar': dialogElegirTipo(); break;
+
+        /* Deudas personales */
+        case 'nuevo-personal':    dialogPersonal(); break;
+        case 'abrir-personal':    closeDialog(); go('detail-personal', id); break;
+        case 'editar-personal':   dialogPersonal(personales.find(x => x.id === id)); break;
+        case 'borrar-personal':   borrarPersonal(id); break;
+        case 'abonar':            dialogAbono(personales.find(x => x.id === id)); break;
+        case 'save-personal-new':  guardarPersonal(); break;
+        case 'save-personal-edit': guardarPersonal(id); break;
+        case 'save-abono':        guardarAbono(id); break;
+        case 'borrar-abono':      borrarAbono(id, pid); break;
+        case 'a-set':             $('#aMonto').value = v; $('#aMonto').focus(); break;
         case 'abrir':  closeDialog(); go('detail', id); break;
         case 'volver': go('list'); break;
         case 'editar': dlgItem(id); break;
@@ -598,7 +931,7 @@ function mostrar() {
     setTimeout(() => { if (!avisado) { avisado = true; avisarHoy(); } }, 700);
 }
 bootShell({ onReady: () => {
-    let faltan = 2;
+    let faltan = 3;   // financiado, rondas, personales
     const listoUno = () => { if (--faltan <= 0) mostrar(); };
     onSnapshot(query(collection(db, COL.financiado)), (snap) => {
         items = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
@@ -606,6 +939,10 @@ bootShell({ onReady: () => {
     }, (err) => { listoUno(); notice('Sin conexión con la nube', 'neg'); console.error(err); });
     onSnapshot(query(collection(db, COL.rondas)), (snap) => {
         rondas = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        listoUno(); if (listo) render();
+    }, (err) => { listoUno(); console.error(err); });
+    onSnapshot(query(collection(db, COL.personales)), (snap) => {
+        personales = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
         listoUno(); if (listo) render();
     }, (err) => { listoUno(); console.error(err); });
     setTimeout(mostrar, 3000);

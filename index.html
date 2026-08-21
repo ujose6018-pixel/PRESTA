@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Caudal">
 <script src="https://cdn.tailwindcss.com"></script>
-<link rel="stylesheet" href="theme.css?v=7">
+<link rel="stylesheet" href="theme.css?v=9">
 <script>(function(){var s=localStorage.getItem("mf-theme");document.documentElement.dataset.theme=s?s:(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");})();</script>
 <style></style>
 </head>
@@ -94,14 +94,14 @@
 </div>
 
 <script type="module">
-import { db, COL, bottomNav, collection, doc, addDoc, onSnapshot, updateDoc, query, arrayUnion,
+import { db, COL, leerCacheCripto, bottomNav, collection, doc, addDoc, onSnapshot, updateDoc, query, arrayUnion,
          $, esc, uid, money, money0, monogram, tint, notice, openDialog, closeDialog, askConfirm,
          num, dialogFooter, bootShell, saludo, swapView, countUp, cuotaDue, diasEntre, flong,
-         todayStr, dateToISO, LUGARES, rondaInfo, ESTADO_RONDA } from './core.js?v=7';
-import { analizar } from './analisis.js?v=7';
+         todayStr, dateToISO, LUGARES, rondaInfo, ESTADO_RONDA } from './core.js?v=9';
+import { analizar } from './analisis.js?v=9';
 
-const D = { fondos: [], metas: [], fiado: [], financiado: [], prestamos: [], rondas: [], presupuesto: {} };
-let pend = 7, listo = false;
+const D = { fondos: [], metas: [], fiado: [], financiado: [], prestamos: [], rondas: [], personales: [], cripto: [], presupuesto: {}, cotCripto: null };
+let pend = 9, listo = false;
 
 /* ---------------- Métricas por módulo ---------------- */
 const movs = (f) => Array.isArray(f?.movements) ? f.movements : [];
@@ -140,6 +140,7 @@ const textoDias = (d) => d < 0 ? `vencida hace ${Math.abs(d)} d` : d === 0 ? 've
 
 /* ---------------- Panel ---------------- */
 function render() {
+    D.cotCripto = leerCacheCripto();   // precios que dejó la pantalla de Cripto
     const R = analizar(D);
     const c = R.cifras;
     const al = alertasCuotas();
@@ -240,6 +241,7 @@ function render() {
                 </span>
                 <span class="stat-name">Deudas</span>
                 <span class="stat-val" style="color:${c.deudaTotal > 0 ? 'var(--neg)' : 'var(--ink)'}">${money(c.deudaTotal)}</span>
+                ${c.deudaPersonal > 0 ? `<span class="text-[11.5px] font-bold mt-1 block" style="color:var(--ink-3)">${money0(c.deudaPersonal)} personal</span>` : ''}
             </a>
             <a class="stat" href="ahorro.html">
                 <span class="stat-ico" style="background:var(--pos-soft)">
@@ -247,6 +249,7 @@ function render() {
                 </span>
                 <span class="stat-name">Ahorros</span>
                 <span class="stat-val pos">${money(ahorro)}</span>
+                ${c.criptoLps > 0 ? `<span class="text-[11.5px] font-bold mt-1 block" style="color:var(--ink-3)">+ ${money0(c.criptoLps)} cripto</span>` : ''}
             </a>
         </div>
 
@@ -534,6 +537,8 @@ const sub = (col, campo) => onSnapshot(query(collection(db, col)), (s) => {
 bootShell({ onReady: () => {
     sub(COL.fondos, 'fondos'); sub(COL.metas, 'metas'); sub(COL.fiado, 'fiado');
     sub(COL.financiado, 'financiado'); sub(COL.prestamos, 'prestamos'); sub(COL.rondas, 'rondas');
+    sub(COL.personales, 'personales');
+    sub(COL.cripto, 'cripto');
     onSnapshot(doc(db, COL.presupuesto, 'main'), (s) => {
         D.presupuesto = s.exists() ? s.data() : {};
         if (--pend <= 0) mostrar();

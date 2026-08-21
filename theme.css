@@ -490,6 +490,9 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--brand); }
 .split { display: grid; gap: 12px; }
 @media (min-width: 700px) { .split-2 { grid-template-columns: 1fr 1fr; } }
 
+.girando svg { animation: girar .9s linear infinite; }
+@keyframes girar { to { transform: rotate(360deg) } }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }

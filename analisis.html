@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Análisis">
 <script src="https://cdn.tailwindcss.com"></script>
-<link rel="stylesheet" href="theme.css?v=7">
+<link rel="stylesheet" href="theme.css?v=9">
 <script>(function(){var s=localStorage.getItem("mf-theme");document.documentElement.dataset.theme=s?s:(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");})();</script>
 <style>
     
@@ -77,15 +77,16 @@
 </div>
 
 <script type="module">
-import { db, COL, collection, doc, onSnapshot, query, $, esc, money, money0, notice, openDialog,
-         closeDialog, bootShell, mountShell, saludo, swapView, countUp, leer, guardar, flong, clamp } from './core.js?v=7';
-import { analizar, resumenParaIA } from './analisis.js?v=7';
+import { db, COL, leerCacheCripto, collection, doc, onSnapshot, query, $, esc, money, money0, notice, openDialog,
+         closeDialog, bootShell, mountShell, saludo, swapView, countUp, leer, guardar, flong, clamp } from './core.js?v=9';
+import { analizar, resumenParaIA } from './analisis.js?v=9';
 
-const D = { fondos: [], metas: [], fiado: [], financiado: [], prestamos: [], rondas: [], presupuesto: {} };
-let R = null, pendientes = 7;
+const D = { fondos: [], metas: [], fiado: [], financiado: [], prestamos: [], rondas: [], personales: [], cripto: [], presupuesto: {}, cotCripto: null };
+let R = null, pendientes = 9;   // 7 colecciones + presupuesto
 
 /* ---------------- Vista ---------------- */
 function render() {
+    D.cotCripto = leerCacheCripto();   // precios que dejó la pantalla de Cripto
     R = analizar(D);
     const c = R.cifras;
     const circ = 2 * Math.PI * 52;
@@ -200,6 +201,29 @@ function render() {
                 <p class="text-[12.5px] mt-4 pt-3" style="border-top:1px solid var(--rule);color:var(--ink-2);line-height:1.6">
                     Antes de tu turno lo aportado cuenta como ahorro. Después de cobrar el bote, lo que falta pasa a deuda.
                 </p>
+            </div></section>
+        </div>` : ''}
+
+        ${c.nCripto > 0 ? `
+        <div>
+            <p class="sec-title">Criptomonedas</p>
+            <section class="gcard"><div class="px-5 py-4">
+                ${c.criptoSinPrecio ? `
+                <p class="text-[13.5px] font-semibold" style="color:var(--warn)">
+                    Tenés ${c.nCripto} moneda${c.nCripto === 1 ? '' : 's'} anotada${c.nCripto === 1 ? '' : 's'} pero sin precio.
+                    Abrí Ahorros › Cripto con señal.
+                </p>` : `
+                <div class="flex justify-between items-baseline mb-1">
+                    <span class="text-[13.5px] font-bold" style="color:var(--ink-2)">Valor de mercado</span>
+                    <span class="text-right">
+                        <span class="num text-[17px]">${money(c.criptoLps)}</span>
+                        <span class="block text-[12px]" style="color:var(--ink-3)">$${c.criptoUSD.toFixed(2)}</span>
+                    </span>
+                </div>
+                <p class="text-[12.5px] mt-3.5 pt-3" style="border-top:1px solid var(--rule);color:var(--ink-2);line-height:1.6">
+                    Cuenta completa en tu patrimonio. Como colchón de emergencia cuenta menos:
+                    ${c.criptoVolUSD > 0 ? 'lo volátil entra a la mitad porque puede caer justo el día que lo necesités' : 'lo estable entra completo porque sigue al dólar'}.
+                </p>`}
             </div></section>
         </div>` : ''}
 
@@ -460,6 +484,8 @@ bootShell({ onReady: () => {
     suscribir(COL.financiado, 'financiado');
     suscribir(COL.prestamos, 'prestamos');
     suscribir(COL.rondas, 'rondas');
+    suscribir(COL.personales, 'personales');
+    suscribir(COL.cripto, 'cripto');
     onSnapshot(doc(db, COL.presupuesto, 'main'), (s) => {
         D.presupuesto = s.exists() ? s.data() : {};
         if (--pendientes <= 0) mostrar();
