@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Análisis">
 <script src="https://cdn.tailwindcss.com"></script>
-<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="theme.css?v=7">
 <script>(function(){var s=localStorage.getItem("mf-theme");document.documentElement.dataset.theme=s?s:(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");})();</script>
 <style>
     
@@ -78,8 +78,8 @@
 
 <script type="module">
 import { db, COL, collection, doc, onSnapshot, query, $, esc, money, money0, notice, openDialog,
-         closeDialog, bootShell, mountShell, saludo, swapView, countUp, leer, guardar, flong, clamp } from './core.js';
-import { analizar, resumenParaIA } from './analisis.js';
+         closeDialog, bootShell, mountShell, saludo, swapView, countUp, leer, guardar, flong, clamp } from './core.js?v=7';
+import { analizar, resumenParaIA } from './analisis.js?v=7';
 
 const D = { fondos: [], metas: [], fiado: [], financiado: [], prestamos: [], rondas: [], presupuesto: {} };
 let R = null, pendientes = 7;

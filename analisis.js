@@ -3,7 +3,7 @@
    Puntúa 0-100 en cinco áreas usando los datos de todos los
    módulos. Es determinista: mismos datos, mismo resultado.
    ============================================================ */
-import { money, money0, cuotaDue, diasEntre, monthKey, isoToDate, rondaInfo, esTercero } from './core.js';
+import { money, money0, cuotaDue, diasEntre, monthKey, isoToDate, rondaInfo, esTercero } from './core.js?v=7';
 
 const cl = (v, a = 0, b = 100) => Math.min(b, Math.max(a, v));
 /** Interpola lineal entre dos puntos y recorta a 0-100. */

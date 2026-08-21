@@ -15,7 +15,7 @@
     <meta name="apple-mobile-web-app-title" content="Ahorros">
 
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="theme.css">
+    <link rel="stylesheet" href="theme.css?v=7">
     <style>
         
 
@@ -156,7 +156,7 @@
    rompe la persistencia y deja la pantalla de carga colgada. */
 import { db, auth, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc, query,
          arrayUnion, writeBatch, signInAnonymously, onAuthStateChanged,
-         COL, MASTER_KEY, LUGARES, lugarDe, mountShell, bottomNav } from './core.js';
+         COL, MASTER_KEY, LUGARES, lugarDe, mountShell, bottomNav } from './core.js?v=7';
 
 const FUNDS = COL.fondos;
 const PLANS = COL.metas;

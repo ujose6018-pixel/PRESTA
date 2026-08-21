@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Caudal">
 <script src="https://cdn.tailwindcss.com"></script>
-<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="theme.css?v=7">
 <script>(function(){var s=localStorage.getItem("mf-theme");document.documentElement.dataset.theme=s?s:(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");})();</script>
 <style></style>
 </head>
@@ -97,8 +97,8 @@
 import { db, COL, bottomNav, collection, doc, addDoc, onSnapshot, updateDoc, query, arrayUnion,
          $, esc, uid, money, money0, monogram, tint, notice, openDialog, closeDialog, askConfirm,
          num, dialogFooter, bootShell, saludo, swapView, countUp, cuotaDue, diasEntre, flong,
-         todayStr, dateToISO, LUGARES, rondaInfo, ESTADO_RONDA } from './core.js';
-import { analizar } from './analisis.js';
+         todayStr, dateToISO, LUGARES, rondaInfo, ESTADO_RONDA } from './core.js?v=7';
+import { analizar } from './analisis.js?v=7';
 
 const D = { fondos: [], metas: [], fiado: [], financiado: [], prestamos: [], rondas: [], presupuesto: {} };
 let pend = 7, listo = false;

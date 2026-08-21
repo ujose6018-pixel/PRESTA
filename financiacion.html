@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Financiación">
 <script src="https://cdn.tailwindcss.com"></script>
-<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="theme.css?v=7">
 <script>(function(){var s=localStorage.getItem("mf-theme");document.documentElement.dataset.theme=s?s:(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");})();</script>
 <style>
     body { padding-bottom: 26px; background: var(--paper); }
@@ -82,7 +82,7 @@ import { db, COL, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc, que
          $, esc, uid, money, money0, monogram, tint, flong, fmid, todayStr, isoToDate, dateToISO,
          cuotaDue, diasEntre, MESES, notice, openDialog, closeDialog, askConfirm, num, dialogFooter,
          bootShell, mountShell, saludo, swapView, countUp, leer, guardar,
-         rondaInfo, ESTADO_RONDA } from './core.js';
+         rondaInfo, ESTADO_RONDA } from './core.js?v=7';
 
 let items = [], rondas = [], route = { view: 'list', id: null };
 const AVISO_DIAS = 5;   // cuántos días antes empieza el recordatorio

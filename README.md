@@ -102,6 +102,32 @@ Las listas se muestran separadas: "Con mi capital" y "Préstamos que administro"
 "Cuentas que administro". El análisis tiene un bloque aparte, "Lo que administro", que deja claro
 que ese dinero no cuenta en tus números.
 
+## Publicar una versión nueva
+
+**No basta con subir los archivos.** El navegador puede quedarse con el JavaScript viejo y cargarlo
+junto al HTML nuevo, lo que produce errores del tipo `does not provide an export named 'X'`.
+
+Antes de subir, corré:
+
+```bash
+python3 publicar.py 8      # el número que siga
+```
+
+Eso le pone `?v=8` a `core.js`, `analisis.js` y `theme.css` en todas las páginas, y deja `sw.js`
+con el mismo número. Como la URL cambia, servir la versión anterior es imposible.
+
+**La versión tiene que ser la misma en todos lados.** Si una página pide `core.js?v=8` y otra
+`core.js?v=7`, el navegador los trata como dos módulos distintos, carga `core.js` dos veces y
+Firebase se inicializa dos veces — que es justo el error que deja la pantalla de carga colgada.
+El script se encarga de eso, por eso conviene usarlo en vez de editar a mano.
+
+El service worker además:
+
+- Usa `skipWaiting()` y `clients.claim()`, para tomar control sin esperar a que cierres las pestañas.
+- Pide los archivos propios con `cache: 'no-store'`, para que el caché HTTP del navegador no
+  devuelva código viejo detrás de la estrategia de red primero.
+- Cachea los archivos uno por uno en vez de con `addAll()`, que falla entera si falta uno solo.
+
 ## Regla importante
 
 Ninguna página que importe `core.js` debe inicializar Firebase por su cuenta. `core.js` ya llama a

@@ -55,6 +55,77 @@ export const LUGARES = {
 export const lugarDe = (f) => LUGARES[f?.place] || LUGARES.efectivo;
 
 /* ============================================================
+   Titularidad
+   Hay cuentas de fiado y préstamos que no son tuyos: los
+   administrás para otra persona. Ese dinero NO entra en tu
+   patrimonio ni en tu salud financiera, pero se sigue viendo
+   y gestionando igual.
+
+   Los registros creados antes de esta función no traen el campo,
+   así que se tratan como propios y nada se rompe.
+   ============================================================ */
+export const esTercero = (x) => x?.fondeo === 'tercero';
+export const esPropio  = (x) => !esTercero(x);
+export const duenoDe   = (x) => (x?.fondeoNombre || '').trim() || 'otra persona';
+
+export const TITULAR = {
+    fiado: {
+        mio:     { label: 'Es mi deuda',      desc: 'Lo que saco lo pago yo' },
+        tercero: { label: 'De otra persona',  desc: 'Solo le llevo el control' }
+    },
+    prestamo: {
+        mio:     { label: 'Mi capital',       desc: 'El dinero prestado es mío' },
+        tercero: { label: 'Capital de otro',  desc: 'Alguien más pone el dinero' }
+    }
+};
+
+/** Insignia para marcar lo que se administra sin ser propio. */
+export const badgeTercero = (x) => esTercero(x)
+    ? `<span class="badge" style="background:var(--accent-soft);color:var(--accent)">de ${escapeHtml(duenoDe(x))}</span>`
+    : '';
+const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+
+/** Selector de titularidad para los formularios. */
+export function selectorTitular(tipo, valor = 'mio', nombre = '') {
+    const opts = TITULAR[tipo];
+    return `
+    <div>
+        <span class="label">${tipo === 'fiado' ? '¿De quién es esta cuenta?' : '¿De quién es el capital?'}</span>
+        <div class="flex gap-2" id="tTitular" data-v="${valor}">
+            ${Object.entries(opts).map(([k, o]) => `
+            <button type="button" class="chip" style="flex:1;padding:11px 10px;text-align:left"
+                    aria-pressed="${k === valor}" data-act="pick-titular" data-v="${k}">
+                <span style="display:block;font-weight:800;font-size:13px">${o.label}</span>
+                <span style="display:block;font-size:11px;opacity:.75;font-weight:500">${o.desc}</span>
+            </button>`).join('')}
+        </div>
+    </div>
+    <div id="tNombreCaja" class="${valor === 'tercero' ? '' : 'hidden'}">
+        <label class="label" for="tNombre">${tipo === 'fiado' ? '¿Quién debe?' : '¿Quién puso el capital?'}</label>
+        <input id="tNombre" class="field" maxlength="40" placeholder="Nombre de la persona" value="${escapeHtml(nombre)}">
+    </div>`;
+}
+
+/** Lee el selector. Devuelve los dos campos listos para guardar. */
+export function leerTitular() {
+    const v = document.querySelector('#tTitular')?.dataset.v || 'mio';
+    const n = (document.querySelector('#tNombre')?.value || '').trim();
+    return { fondeo: v, fondeoNombre: v === 'tercero' ? n : '' };
+}
+
+/** Manejo del clic en el selector. Devuelve true si lo atendió. */
+export function clicTitular(el) {
+    if (el?.dataset?.act !== 'pick-titular') return false;
+    const v = el.dataset.v;
+    const cont = document.querySelector('#tTitular');
+    cont.dataset.v = v;
+    cont.querySelectorAll('.chip').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === v));
+    document.querySelector('#tNombreCaja')?.classList.toggle('hidden', v !== 'tercero');
+    if (v === 'tercero') setTimeout(() => document.querySelector('#tNombre')?.focus(), 60);
+    return true;
+}
+
+/* ============================================================
    Rondas de ahorro
    Una ronda cambia de naturaleza a mitad de camino: antes del
    turno lo aportado es AHORRO; después de cobrar el bote, lo que
@@ -328,7 +399,11 @@ export function bootShell({ onReady } = {}) {
     initRipple();
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && dialogOpen) closeDialog(); });
     window.addEventListener('popstate', () => { if (dialogOpen) closeDialog(true); });
-    document.addEventListener('click', (e) => { if (e.target.closest('[data-act="close-dialog"]')) closeDialog(); });
+    document.addEventListener('click', (e) => {
+        if (e.target.closest('[data-act="close-dialog"]')) closeDialog();
+        const mas = e.target.closest('[data-act="nav-mas"]');
+        if (mas) { e.preventDefault(); dialogMas(); }
+    });
     document.addEventListener('keydown', (e) => {
         if (e.key !== 'Enter' || !dialogOpen) return;
         if (!e.target.closest('#dialog') || e.target.tagName === 'TEXTAREA') return;
@@ -341,24 +416,95 @@ export function bootShell({ onReady } = {}) {
     setTimeout(() => onReady?.(), 5000);
 }
 
-/** Cabecera común: barra de marca + saludo. */
-export function shellHeader(titulo, { back = 'index.html' } = {}) {
+/* ============================================================
+   Armazón compartido: cabecera + navegación inferior
+   Todas las páginas montan lo mismo, por eso se sienten una sola app.
+   ============================================================ */
+const NAV = [
+    { k: 'inicio', href: 'index.html',        label: 'Inicio',
+      ico: '<path d="M4 20V10.2L12 4l8 6.2V20a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1Z"/>' },
+    { k: 'ahorro', href: 'ahorro.html',       label: 'Ahorros',
+      ico: '<path d="M18.5 10.5c0-3.3-2.9-6-6.5-6S5.5 7.2 5.5 10.5c0 1.7.8 3.2 2 4.3V19h2.5v-1.6c.8.2 1.6.3 2.5.3s1.7-.1 2.5-.3V19H17.5v-4.2c1-1.1 1-2.6 1-4.3Z"/><circle cx="15.5" cy="10" r=".9" fill="currentColor"/><path d="M9 5.5C9 4 10 3 11.5 3"/>' },
+    { k: 'fiado',  href: 'fiado.html',        label: 'Fiado',
+      ico: '<path d="M4 6.5A2.5 2.5 0 0 1 6.5 4H17v3.5"/><path d="M4 6.5V18a2 2 0 0 0 2 2h13a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1H6.5"/><circle cx="16.5" cy="14" r="1.3" fill="currentColor"/>' },
+    { k: 'deudas', href: 'financiacion.html', label: 'Deudas',
+      ico: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3 10h18M7 14.5h4"/>' },
+    { k: 'mas',    href: '#mas',              label: 'Más', act: 'nav-mas',
+      ico: '<circle cx="6" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="18" cy="12" r="1.6" fill="currentColor"/>' }
+];
+
+/** Páginas que viven dentro de "Más". */
+const EXTRAS = [
+    { href: 'analisis.html',    titulo: 'Análisis',          sub: 'Cómo van tus finanzas',        color: 'var(--brand-text)', soft: 'var(--brand-soft)',
+      ico: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 8.5 8.5H12Z" fill="currentColor" stroke="none"/>' },
+    { href: 'ronda.html',       titulo: 'Rondas de ahorro',  sub: 'Semanas y turnos',             color: 'var(--accent)',     soft: 'var(--accent-soft)',
+      ico: '<circle cx="9" cy="7.5" r="3"/><path d="M3 20v-1.5A4.5 4.5 0 0 1 7.5 14h3a4.5 4.5 0 0 1 4.5 4.5V20"/><path d="M16.5 4.6a3 3 0 0 1 0 5.8M21 20v-1.5a4.5 4.5 0 0 0-3-4.2"/>' },
+    { href: 'presta.html',      titulo: 'Préstamos',         sub: 'Dinero que me deben',          color: 'var(--pos)',        soft: 'var(--pos-soft)',
+      ico: '<path d="M12 2.5v19"/><path d="M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>' },
+    { href: 'presupuesto.html', titulo: 'Ingresos y gastos', sub: 'Lo que entra y lo que sale',   color: 'var(--warn)',       soft: 'var(--warn-soft)',
+      ico: '<path d="M3 3v18h18"/><path d="m7 14 3-4 3 3 5-6"/>' }
+];
+
+/** Cabecera: barra de marca con degradado. */
+export function shellHeader(titulo) {
     return `
     <header class="appbar">
         <div class="wrap appbar-in">
             <span class="flex items-center gap-2.5 min-w-0">
-                <span class="mono-tile brandmark"><svg width="17" height="17" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="11" aria-hidden="true"><path d="M32 12.5a19.5 19.5 0 1 0 16.9 9.8"/><path d="M59.6 26.7A28 28 0 0 0 36.9 4.4"/></svg></span>
-                <span class="font-semibold text-[15.5px] truncate" style="font-family: var(--f-display); letter-spacing:-.01em;">${esc(titulo)}</span>
+                <span class="mono-tile brandmark">
+                    <svg width="17" height="17" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="11" aria-hidden="true">
+                        <path d="M32 12.5a19.5 19.5 0 1 0 16.9 9.8"/><path d="M59.6 26.7A28 28 0 0 0 36.9 4.4"/>
+                    </svg>
+                </span>
+                <span class="font-extrabold text-[16px] truncate" style="letter-spacing:-.02em">${esc(titulo)}</span>
             </span>
-            <span class="flex items-center gap-1">
-                <button class="appbar-btn" data-act="theme" aria-label="Cambiar tema">
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z"/></svg>
-                </button>
-                <a href="${back}" class="appbar-btn" aria-label="Volver al panel">
-                    Panel
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
-                </a>
-            </span>
+            <button class="appbar-btn" data-act="theme" aria-label="Cambiar tema">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z"/></svg>
+            </button>
         </div>
     </header>`;
+}
+
+/** Navegación inferior fija, igual en todas las páginas. */
+export function bottomNav(activo) {
+    return `
+    <nav class="bnav" role="navigation" aria-label="Secciones">
+        <div class="bnav-in">
+            ${NAV.map(n => `
+            <a href="${n.href}" ${n.act ? `data-act="${n.act}"` : ''} ${n.k === activo ? 'aria-current="page"' : ''}>
+                <span class="bico">
+                    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${n.ico}</svg>
+                </span>
+                ${n.label}
+            </a>`).join('')}
+        </div>
+    </nav>`;
+}
+
+/** Hoja de "Más": el resto de módulos. */
+export function dialogMas() {
+    openDialog(`
+    <h2 class="text-[19px] font-extrabold mb-1">Más</h2>
+    <p class="text-[13.5px] mb-5" style="color:var(--ink-3)">Otras secciones de Caudal</p>
+    <div class="gcard" style="box-shadow:none;border:1px solid var(--rule)">
+        ${EXTRAS.map(x => `
+        <a class="grow" href="${x.href}" style="text-decoration:none;color:inherit">
+            <span class="mono-tile" style="background:${x.soft};color:${x.color}">
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${x.ico}</svg>
+            </span>
+            <span class="flex-1 min-w-0">
+                <span class="block text-[15px] font-extrabold">${esc(x.titulo)}</span>
+                <span class="block text-[12.5px] mt-0.5" style="color:var(--ink-3)">${esc(x.sub)}</span>
+            </span>
+            <svg class="grow-chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+        </a>`).join('')}
+    </div>
+    <button class="btn btn-outline btn-block mt-4" data-act="close-dialog">Cerrar</button>`);
+}
+
+/** Monta cabecera y navegación de una vez. */
+export function mountShell(titulo, activo) {
+    const host = $('#shell');
+    if (host) host.innerHTML = shellHeader(titulo);
+    if (!document.querySelector('.bnav')) document.body.insertAdjacentHTML('beforeend', bottomNav(activo));
 }
