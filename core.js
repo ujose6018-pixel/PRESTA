@@ -35,8 +35,7 @@ export const COL = {
     fiado:       'credit_accounts',
     financiado:  'financed_items',
     personales:  'personal_debts',
-    presupuesto: 'budget_profile',
-    cripto:      'crypto_holdings'
+    presupuesto: 'budget_profile'
 };
 export const MASTER_KEY = '2026';
 
@@ -52,8 +51,13 @@ export const LUGARES = {
     ahorro:    { label: 'Cuenta de ahorro',desc: 'Cuenta en el banco',        color: '#1C6544',
                  ico: '<path d="M3 9.5 12 4l9 5.5"/><path d="M5 10v8M19 10v8M9 10v8M15 10v8M3 20h18"/>' },
     billetera: { label: 'Billetera digital', desc: 'Tigo Money u otra',       color: '#7B2D38',
-                 ico: '<path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H18v3"/><path d="M3 7.5V18a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2"/><path d="M21 9v4h-4a2 2 0 0 1 0-4Z"/>' }
+                 ico: '<path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H18v3"/><path d="M3 7.5V18a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2"/><path d="M21 9v4h-4a2 2 0 0 1 0-4Z"/>' },
+    cripto:    { label: 'Criptomoneda',    desc: 'Binance, Trust Wallet…',    color: '#6D28A8',
+                 ico: '<circle cx="12" cy="12" r="9"/><path d="M9.5 8.5h4a2.2 2.2 0 0 1 0 4.4h-4Zm0 4.4h4.3a2.2 2.2 0 0 1 0 4.4H9.5Zm0-4.4V17M11 6.5v2M14 6.5v2M11 17v2M14 17v2"/>' }
 };
+
+/** Los fondos de cripto guardan la cantidad en monedas, no en lempiras. */
+export const esCripto = (f) => f?.place === 'cripto';
 export const lugarDe = (f) => LUGARES[f?.place] || LUGARES.efectivo;
 
 /* ============================================================
@@ -392,6 +396,25 @@ export async function buscarMoneda(texto) {
     return (j?.coins || []).slice(0, 8).map(c => ({
         id: c.id, sym: (c.symbol || '').toUpperCase(), nombre: c.name, bin: null
     }));
+}
+
+/**
+ * Convierte el saldo de un fondo a lempiras.
+ * Los fondos normales ya están en lempiras; los de cripto se valoran
+ * con el precio cacheado. Si no hay precio, vale 0 (y se puede detectar
+ * con `criptoSinPrecio`).
+ */
+export function fondoEnLempiras(f, saldo, cot) {
+    if (!esCripto(f)) return saldo;
+    const usd = Number(cot?.usd?.[f.coinId]?.usd) || 0;
+    const hnl = Number(cot?.hnl) || 0;
+    return saldo * usd * hnl;
+}
+
+/** Valor en dólares del saldo de un fondo de cripto. */
+export function fondoEnDolares(f, saldo, cot) {
+    if (!esCripto(f)) return 0;
+    return saldo * (Number(cot?.usd?.[f.coinId]?.usd) || 0);
 }
 
 /** Cantidad de cripto: hasta 8 decimales, sin ceros de relleno. */

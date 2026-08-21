@@ -1,12 +1,12 @@
 /* Caudal · service worker
    Sube el número de VER en cada publicación (o corré publicar.py, que
    lo hace junto con las URLs de los módulos). */
-const VER = 'caudal-v9';
+const VER = 'caudal-v10';
 
 const ASSETS = [
   './', './index.html', './ahorro.html', './fiado.html', './financiacion.html',
   './presupuesto.html', './analisis.html', './presta.html', './ronda.html',
-  './core.js?v=9', './analisis.js?v=9', './theme.css?v=9',
+  './core.js?v=10', './analisis.js?v=10', './theme.css?v=10',
   './manifest.json',
   './icons/mark.svg', './icons/icon-192.png', './icons/icon-512.png',
   './icons/maskable-192.png', './icons/maskable-512.png',

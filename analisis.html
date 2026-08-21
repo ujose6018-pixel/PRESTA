@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Análisis">
 <script src="https://cdn.tailwindcss.com"></script>
-<link rel="stylesheet" href="theme.css?v=9">
+<link rel="stylesheet" href="theme.css?v=10">
 <script>(function(){var s=localStorage.getItem("mf-theme");document.documentElement.dataset.theme=s?s:(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");})();</script>
 <style>
     
@@ -78,11 +78,11 @@
 
 <script type="module">
 import { db, COL, leerCacheCripto, collection, doc, onSnapshot, query, $, esc, money, money0, notice, openDialog,
-         closeDialog, bootShell, mountShell, saludo, swapView, countUp, leer, guardar, flong, clamp } from './core.js?v=9';
-import { analizar, resumenParaIA } from './analisis.js?v=9';
+         closeDialog, bootShell, mountShell, saludo, swapView, countUp, leer, guardar, flong, clamp } from './core.js?v=10';
+import { analizar, resumenParaIA } from './analisis.js?v=10';
 
-const D = { fondos: [], metas: [], fiado: [], financiado: [], prestamos: [], rondas: [], personales: [], cripto: [], presupuesto: {}, cotCripto: null };
-let R = null, pendientes = 9;   // 7 colecciones + presupuesto
+const D = { fondos: [], metas: [], fiado: [], financiado: [], prestamos: [], rondas: [], personales: [], presupuesto: {}, cotCripto: null };
+let R = null, pendientes = 8;   // 7 colecciones + presupuesto
 
 /* ---------------- Vista ---------------- */
 function render() {
@@ -485,7 +485,6 @@ bootShell({ onReady: () => {
     suscribir(COL.prestamos, 'prestamos');
     suscribir(COL.rondas, 'rondas');
     suscribir(COL.personales, 'personales');
-    suscribir(COL.cripto, 'cripto');
     onSnapshot(doc(db, COL.presupuesto, 'main'), (s) => {
         D.presupuesto = s.exists() ? s.data() : {};
         if (--pendientes <= 0) mostrar();

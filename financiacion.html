@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Financiación">
 <script src="https://cdn.tailwindcss.com"></script>
-<link rel="stylesheet" href="theme.css?v=9">
+<link rel="stylesheet" href="theme.css?v=10">
 <script>(function(){var s=localStorage.getItem("mf-theme");document.documentElement.dataset.theme=s?s:(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");})();</script>
 <style>
     body { padding-bottom: 26px; background: var(--paper); }
@@ -82,7 +82,7 @@ import { db, COL, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc, que
          $, esc, uid, money, money0, monogram, tint, flong, fmid, todayStr, isoToDate, dateToISO,
          cuotaDue, diasEntre, MESES, notice, openDialog, closeDialog, askConfirm, num, dialogFooter,
          bootShell, mountShell, saludo, swapView, countUp, leer, guardar,
-         rondaInfo, ESTADO_RONDA } from './core.js?v=9';
+         rondaInfo, ESTADO_RONDA } from './core.js?v=10';
 
 let items = [], rondas = [], personales = [], route = { view: 'list', id: null };
 const AVISO_DIAS = 5;   // cuántos días antes empieza el recordatorio
@@ -624,7 +624,7 @@ function dialogPersonal(d = null) {
                 <input id="dPlazo" class="field" type="date" value="${d?.dueDate || ''}">
                 <p class="hint mt-1.5">Si ponés fecha, te avisa ${AVISO_DIAS} días antes.</p></div>
         </div>
-        ${dialogFooter(editando ? 'Guardar' : 'Agregar', editando ? `save-personal-edit" data-id="${d.id}` : 'save-personal-new')}`);
+        ${dialogFooter(editando ? 'save-personal-edit' : 'save-personal-new', editando ? 'Guardar' : 'Agregar', d?.id || '')}`);
     setTimeout(() => $('#dPersona')?.focus(), 80);
 }
 
@@ -673,7 +673,7 @@ function dialogAbono(d) {
                     <input id="aNota" class="field" maxlength="40" placeholder="Efectivo, transferencia..."></div>
             </div>
         </div>
-        ${dialogFooter('Registrar abono', `save-abono" data-id="${d.id}`)}`);
+        ${dialogFooter('save-abono', 'Registrar abono', d.id)}`);
     setTimeout(() => $('#aMonto')?.focus(), 80);
 }
 

@@ -15,7 +15,7 @@
     <meta name="apple-mobile-web-app-title" content="Ahorros">
 
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="theme.css?v=9">
+    <link rel="stylesheet" href="theme.css?v=10">
     <style>
         
 
@@ -129,7 +129,6 @@
             <button class="chip" data-tab="home"  aria-pressed="true">Resumen</button>
             <button class="chip" data-tab="funds" aria-pressed="false">Fondos</button>
             <button class="chip" data-tab="goals" aria-pressed="false">Metas</button>
-            <button class="chip" data-tab="cripto" aria-pressed="false">Cripto</button>
         </div>
     </div>
     <main class="wrap py-4">
@@ -138,7 +137,6 @@
         <section id="view-fund"  class="hidden"></section>
         <section id="view-goals" class="hidden"></section>
         <section id="view-goal"  class="hidden"></section>
-        <section id="view-cripto" class="hidden"></section>
         <section id="view-logros" class="hidden"></section>
 
         <footer class="sitefoot">
@@ -159,8 +157,9 @@
 import { db, auth, collection, doc, addDoc, onSnapshot, updateDoc, deleteDoc, query,
          arrayUnion, writeBatch, signInAnonymously, onAuthStateChanged,
          COL, MASTER_KEY, LUGARES, lugarDe, mountShell, bottomNav,
-         MONEDAS, BILLETERAS, monedaPorId, esEstable, cotizar, buscarMoneda,
-         cantCripto, precioUSD, usdMoney, haceCuanto, CRIPTO_REFRESCO, leerCacheCripto } from './core.js?v=9';
+         MONEDAS, BILLETERAS, monedaPorId, esEstable, cotizar, buscarMoneda, esCripto,
+         fondoEnLempiras, fondoEnDolares, cantCripto, precioUSD, usdMoney, haceCuanto,
+         CRIPTO_REFRESCO, leerCacheCripto } from './core.js?v=10';
 
 const FUNDS = COL.fondos;
 const PLANS = COL.metas;
@@ -235,7 +234,13 @@ function planTotals(p) {
     }
     return { saved: (p.deposits || []).reduce((a, d) => a + Number(d.amount || 0), 0), target: Number(p.targetAmount) || 0, count: 0 };
 }
-const totalFunds = () => funds.reduce((a, f) => a + balanceOf(f), 0);
+/* Los fondos de cripto guardan monedas, no lempiras: hay que valorarlos
+   antes de sumarlos con los demás. */
+const totalFunds = () => funds.reduce((a, f) => a + fondoEnLempiras(f, balanceOf(f), cot), 0);
+/** Saldo mostrable de un fondo: monedas si es cripto, lempiras si no. */
+const saldoTexto = (f) => esCripto(f)
+    ? `${cantCripto(balanceOf(f))} ${esc(f.symbol || '')}`
+    : money(balanceOf(f));
 const totalGoals = () => plans.reduce((a, p) => a + planTotals(p).saved, 0);
 
 /* Saldo corrido: cronológico hacia adelante, luego se muestra al revés */
@@ -297,11 +302,9 @@ function askConfirm({ title, body, label = 'Confirmar', danger = false, key = fa
 
 /* ---------------- Navegación ---------------- */
 function go(view, id = null, push = true) {
-    const entrando = view === 'cripto' && route.view !== 'cripto';
     route = { view, id };
-    if (entrando) { cot = { ...cot, ...(leerCacheCripto() || {}) }; setTimeout(() => refrescarCripto(true), 30); }
     if (push) history.pushState({ view, id }, '');
-    ['home', 'funds', 'fund', 'goals', 'goal', 'logros', 'cripto'].forEach(v => $('#view-' + v).classList.toggle('hidden', v !== view));
+    ['home', 'funds', 'fund', 'goals', 'goal', 'logros'].forEach(v => $('#view-' + v).classList.toggle('hidden', v !== view));
     document.querySelectorAll('#subtabs [data-tab]').forEach(t => {
         const activo = t.dataset.tab === view || (view === 'fund' && t.dataset.tab === 'funds') || (view === 'goal' && t.dataset.tab === 'goals');
         t.setAttribute('aria-pressed', activo ? 'true' : 'false');
@@ -324,8 +327,7 @@ function render() {
     if (route.view === 'goals') renderGoals();
     if (route.view === 'goal')  renderGoalDetail();
     if (route.view === 'logros') renderLogros();
-    if (route.view === 'cripto') { renderCripto(); }
-    cicloCripto(route.view === 'cripto');
+    cicloCripto(funds.some(esCripto));
     revisarLogros();
 }
 
@@ -334,15 +336,17 @@ function render() {
    Las tenencias viven en Firestore; los precios NO. Se cotizan
    en vivo cada minuto y se cachean en el teléfono.
    ============================================================ */
-let cripto = [];
-let cot = { usd: {}, hnl: 0, ts: 0, fresco: false, error: null };
+let cot = leerCacheCripto() || { usd: {}, hnl: 0, ts: 0, fresco: false, error: null };
 let timerCripto = null, cotizando = false;
+let buscadas = [];   // resultados de búsqueda en CoinGecko
 
-const idsEnUso = () => [...new Set(cripto.map(c => c.coinId).filter(Boolean))];
-const valorUSD  = (c) => (Number(c.amount) || 0) * (cot.usd[c.coinId]?.usd || 0);
-const totalUSD  = () => cripto.reduce((a, c) => a + valorUSD(c), 0);
-const invertido = () => cripto.reduce((a, c) => a + (Number(c.cost) || 0), 0);
+const fondosCripto = () => funds.filter(esCripto);
+const idsEnUso  = () => [...new Set(fondosCripto().map(f => f.coinId).filter(Boolean))];
+const precioDe  = (f) => Number(cot.usd?.[f.coinId]?.usd) || 0;
+const enLps     = (f) => fondoEnLempiras(f, balanceOf(f), cot);
+const enUsd     = (f) => fondoEnDolares(f, balanceOf(f), cot);
 const aLps      = (usd) => usd * (cot.hnl || 0);
+const sinPrecio = (f) => esCripto(f) && precioDe(f) === 0;
 
 /** Cotiza y repinta. `silencioso` evita el aviso en el ciclo automático. */
 async function refrescarCripto(silencioso = true) {
@@ -357,7 +361,7 @@ async function refrescarCripto(silencioso = true) {
     finally {
         cotizando = false;
         $('#btnRefrescar')?.classList.remove('girando');
-        if (route.view === 'cripto') renderCripto();
+        render();
     }
 }
 
@@ -366,171 +370,12 @@ function cicloCripto(encender) {
     clearInterval(timerCripto); timerCripto = null;
     if (!encender) return;
     timerCripto = setInterval(() => {
-        if (document.visibilityState === 'visible' && route.view === 'cripto') refrescarCripto(true);
+        if (document.visibilityState === 'visible') refrescarCripto(true);
     }, CRIPTO_REFRESCO);
 }
 document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && route.view === 'cripto') refrescarCripto(true);
+    if (document.visibilityState === 'visible' && funds.some(esCripto)) refrescarCripto(true);
 });
-
-function renderCripto() {
-    const usd = totalUSD(), lps = aLps(usd), inv = invertido();
-    const ganancia = inv > 0 ? usd - inv : null;
-    const porBilletera = {};
-    cripto.forEach(c => {
-        const w = (c.wallet || 'Sin especificar').trim() || 'Sin especificar';
-        porBilletera[w] = (porBilletera[w] || 0) + valorUSD(c);
-    });
-    const billeteras = Object.entries(porBilletera).sort((a, b) => b[1] - a[1]);
-    const ordenadas = [...cripto].sort((a, b) => valorUSD(b) - valorUSD(a));
-
-    $('#view-cripto').innerHTML = `
-    <div class="space-y-4 view-in">
-        <section class="gcard hero">
-            <div class="px-5 pt-5 pb-5">
-                <div class="flex items-start justify-between gap-3">
-                    <div class="min-w-0">
-                        <p class="tag">Mis criptomonedas</p>
-                        <p class="num text-[34px] leading-[1.1] mt-1.5">${usdMoney(usd)}</p>
-                        <p class="num text-[19px] mt-1" style="opacity:.85">
-                            ${cot.hnl ? money(lps) : 'L —'}
-                        </p>
-                    </div>
-                    <button class="appbar-btn flex-none" id="btnRefrescar" data-act="cripto-refrescar" aria-label="Actualizar precios">
-                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
-                    </button>
-                </div>
-
-                <p class="text-[12px] mt-3 font-semibold" style="opacity:.75">
-                    ${cot.hnl ? `1 USD = L ${cot.hnl.toFixed(2)} · ` : ''}${cot.fresco ? 'actualizado' : 'último dato'} ${haceCuanto(cot.ts)}
-                </p>
-
-                ${ganancia !== null ? `
-                <div class="mt-4 pt-4" style="border-top:1px solid rgba(255,255,255,.2)">
-                    <div class="flex justify-between items-baseline">
-                        <span class="text-[13px] font-bold" style="opacity:.8">Puse ${usdMoney(inv)}</span>
-                        <span class="num text-[16px]" style="color:${ganancia >= 0 ? '#8BF0C0' : '#FFB3B9'}">
-                            ${ganancia >= 0 ? '+' : ''}${usdMoney(ganancia)}
-                        </span>
-                    </div>
-                    <p class="text-[11.5px] mt-1" style="opacity:.7">
-                        ${ganancia >= 0 ? 'Ganancia' : 'Pérdida'} de ${Math.abs(inv > 0 ? (ganancia / inv) * 100 : 0).toFixed(1)}% · ${money(aLps(Math.abs(ganancia)))}
-                    </p>
-                </div>` : ''}
-
-                <div class="hero-actions">
-                    <button class="hero-btn" data-act="cripto-nueva">
-                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-                        Agregar
-                    </button>
-                </div>
-            </div>
-        </section>
-
-        ${!cot.fresco && cripto.length ? `
-        <div class="gcard"><div class="px-4 py-3.5 flex items-center gap-3">
-            <span class="dot-pulse" style="color:var(--warn)"></span>
-            <p class="text-[12.5px] font-semibold" style="color:var(--ink-2)">
-                No se pudo conectar. Estos precios son de ${haceCuanto(cot.ts)}.
-            </p>
-        </div></div>` : ''}
-
-        ${billeteras.length > 1 ? `
-        <div>
-            <p class="sec-title">Dónde las tengo</p>
-            <section class="gcard"><div class="px-5 py-4 space-y-3">
-                ${billeteras.map(([w, v]) => `
-                <div>
-                    <div class="flex justify-between items-baseline mb-1.5">
-                        <span class="text-[13.5px] font-bold">${esc(w)}</span>
-                        <span class="text-right">
-                            <span class="num text-[14px]">${usdMoney(v)}</span>
-                            ${cot.hnl ? `<span class="block text-[11.5px]" style="color:var(--ink-3)">${money(aLps(v))}</span>` : ''}
-                        </span>
-                    </div>
-                    <div class="meter"><i style="width:${usd > 0 ? (v / usd) * 100 : 0}%"></i></div>
-                </div>`).join('')}
-            </div></section>
-        </div>` : ''}
-
-        <div>
-            <p class="sec-title">Mis monedas</p>
-            ${ordenadas.length ? ordenadas.map(filaCripto).join('') : `
-            <section class="gcard"><div class="px-5 py-7 text-center">
-                <p class="text-[15px] font-extrabold mb-1.5">Todavía no tenés ninguna</p>
-                <p class="text-[13px] mb-5" style="color:var(--ink-3);line-height:1.6">
-                    Anotá cuánto tenés de cada moneda y en qué billetera.
-                    Los precios se consultan solos cada minuto.
-                </p>
-                <button class="btn btn-primary" data-act="cripto-nueva">Agregar mi primera</button>
-            </div></section>`}
-        </div>
-
-        ${cripto.length ? `
-        <div class="gcard"><div class="px-5 py-4">
-            <p class="text-[12.5px]" style="color:var(--ink-2);line-height:1.65">
-                Los precios vienen de CoinGecko y el tipo de cambio de una tasa de mercado.
-                <b>En una casa de cambio te van a dar menos</b>: esto sirve para tener una idea, no como precio de venta.
-            </p>
-        </div></div>` : ''}
-    </div>`;
-}
-
-/** Tarjeta de una moneda: cantidad, precio, valor en las dos monedas. */
-function filaCripto(c) {
-    const m = monedaPorId(c.coinId) || { sym: c.symbol || '?', nombre: c.name || 'Moneda' };
-    const p = cot.usd[c.coinId];
-    const v = valorUSD(c);
-    const cambio = p?.cambio24 ?? null;
-    const inv = Number(c.cost) || 0;
-    const gan = inv > 0 ? v - inv : null;
-    const t = tint(m.sym);
-
-    return `<div class="gcard" style="margin-bottom:12px">
-        <div class="px-4 pt-4 pb-4">
-            <div class="flex items-start gap-3 mb-3">
-                <span class="mono-tile" style="background:${t.bg};color:${t.fg}">${esc(m.sym.slice(0, 4))}</span>
-                <span class="flex-1 min-w-0">
-                    <span class="flex items-center gap-2 flex-wrap">
-                        <span class="text-[16px] font-extrabold truncate">${esc(m.nombre)}</span>
-                        ${esEstable(c.coinId) ? '<span class="badge" style="background:var(--pos-soft);color:var(--pos)">estable</span>' : ''}
-                    </span>
-                    <span class="block text-[13px] mt-0.5" style="color:var(--ink-3)">
-                        ${cantCripto(c.amount)} ${esc(m.sym)}${c.wallet ? ` · ${esc(c.wallet)}` : ''}
-                    </span>
-                </span>
-                <button class="btn btn-quiet btn-sm flex-none" style="padding:6px 8px" data-act="cripto-editar" data-id="${c.id}" aria-label="Editar">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="5" r="1.4" fill="currentColor"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/><circle cx="12" cy="19" r="1.4" fill="currentColor"/></svg>
-                </button>
-            </div>
-
-            <div class="flex items-end justify-between gap-3">
-                <div class="min-w-0">
-                    <p class="tag">Vale ahora</p>
-                    <p class="num text-[22px] leading-tight mt-0.5">${p ? usdMoney(v) : '—'}</p>
-                    ${p && cot.hnl ? `<p class="num text-[14px] mt-0.5" style="color:var(--ink-2)">${money(aLps(v))}</p>` : ''}
-                </div>
-                <div class="text-right flex-none">
-                    ${p ? `
-                    <p class="text-[12.5px] font-bold" style="color:var(--ink-3)">${precioUSD(p.usd)} c/u</p>
-                    ${cambio !== null && !esEstable(c.coinId) ? `
-                    <p class="text-[13px] font-extrabold mt-0.5" style="color:${cambio >= 0 ? 'var(--pos)' : 'var(--neg)'}">
-                        ${cambio >= 0 ? '▲' : '▼'} ${Math.abs(cambio).toFixed(2)}%
-                        <span class="block text-[10.5px] font-bold" style="color:var(--ink-3)">24 h</span>
-                    </p>` : ''}` : `<p class="text-[12.5px]" style="color:var(--ink-3)">sin precio</p>`}
-                </div>
-            </div>
-
-            ${gan !== null ? `
-            <div class="mt-3 pt-3 flex justify-between items-baseline" style="border-top:1px solid var(--rule)">
-                <span class="text-[12.5px] font-semibold" style="color:var(--ink-3)">Puse ${usdMoney(inv)}</span>
-                <span class="num text-[14px]" style="color:${gan >= 0 ? 'var(--pos)' : 'var(--neg)'}">
-                    ${gan >= 0 ? '+' : ''}${usdMoney(gan)} (${gan >= 0 ? '+' : ''}${((gan / inv) * 100).toFixed(1)}%)
-                </span>
-            </div>` : ''}
-        </div>
-    </div>`;
-}
 
 /* ============================================================
    VISTAS
@@ -634,7 +479,7 @@ function renderHome() {
         ${(() => {
             if (!funds.length) return '';
             const por = {};
-            funds.forEach(f => { const k = f.place || 'efectivo'; por[k] = (por[k] || 0) + balanceOf(f); });
+            funds.forEach(f => { const k = f.place || 'efectivo'; por[k] = (por[k] || 0) + fondoEnLempiras(f, balanceOf(f), cot); });
             const items = Object.entries(por).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
             const T = items.reduce((a, [, v]) => a + v, 0);
             if (T <= 0 || items.length === 0) return '';
@@ -710,6 +555,7 @@ function renderHome() {
 
 function gRowFund(f) {
     const c = colorOf(f), bal = balanceOf(f);
+    const valorCripto = esCripto(f) && precioDe(f) ? enLps(f) : null;
     const pct = f.goal ? Math.min(100, (bal / Number(f.goal)) * 100) : null;
     return `<button class="grow" data-act="open-fund" data-id="${f.id}">
         <span class="mono-tile" style="background:${tint(c, .1)}; color:${c};">${esc(monogram(f.name))}</span>
@@ -816,8 +662,28 @@ function renderFundDetail() {
                         </button>
                     </div>
                 </div>
-                <p class="tag mt-5">Saldo disponible</p>
-                <p class="num text-[30px] leading-none mt-2 ${bal < 0 ? 'neg' : ''}">${money(bal)}</p>
+                <p class="tag mt-5">${esCripto(f) ? 'Tengo' : 'Saldo disponible'}</p>
+                ${esCripto(f) ? `
+                <p class="num text-[30px] leading-none mt-2">${cantCripto(bal)} <span class="text-[19px]">${esc(f.symbol || '')}</span></p>
+                ${precioDe(f) ? `
+                <p class="num text-[21px] mt-2" style="color:var(--ink-2)">${usdMoney(enUsd(f))}</p>
+                ${cot.hnl ? `<p class="num text-[17px] mt-0.5" style="color:var(--ink-3)">${money(enLps(f))}</p>` : ''}
+                <div class="flex items-center gap-2 mt-3 flex-wrap">
+                    <span class="badge" style="background:var(--sunk)">${precioUSD(precioDe(f))} c/u</span>
+                    ${cot.usd[f.coinId]?.cambio24 != null && !esEstable(f.coinId) ? `
+                    <span class="badge" style="background:${cot.usd[f.coinId].cambio24 >= 0 ? 'var(--pos-soft)' : 'var(--neg-soft)'};color:${cot.usd[f.coinId].cambio24 >= 0 ? 'var(--pos)' : 'var(--neg)'}">
+                        ${cot.usd[f.coinId].cambio24 >= 0 ? '▲' : '▼'} ${Math.abs(cot.usd[f.coinId].cambio24).toFixed(2)}% 24h
+                    </span>` : ''}
+                    ${f.wallet ? `<span class="badge" style="background:var(--sunk)">${esc(f.wallet)}</span>` : ''}
+                    <button class="badge" data-act="cripto-refrescar" style="background:var(--brand-soft);color:var(--brand-text);border:0;cursor:pointer" id="btnRefrescar">
+                        ${cot.fresco ? 'Actualizado' : 'Último dato'} ${haceCuanto(cot.ts)} · tocá para refrescar
+                    </button>
+                </div>
+                ${cot.hnl ? `<p class="text-[11.5px] mt-2.5" style="color:var(--ink-3)">1 USD = L ${cot.hnl.toFixed(2)} · tasa de mercado, en casa de cambio dan menos</p>` : ''}
+                ` : `<p class="text-[13px] mt-2 font-semibold" style="color:var(--warn)">Sin precio todavía. Tocá refrescar con señal.</p>
+                <button class="btn btn-outline btn-sm mt-2" data-act="cripto-refrescar" id="btnRefrescar">Refrescar precio</button>`}
+                ` : `
+                <p class="num text-[30px] leading-none mt-2 ${bal < 0 ? 'neg' : ''}">${money(bal)}</p>`}
                 ${pct !== null ? `
                     <div class="meter mt-4" style="max-width: 320px;"><i style="width:${pct}%; background:${c}"></i></div>
                     <p class="text-[12.5px] mt-2" style="color: var(--ink-3);">
@@ -998,7 +864,7 @@ function logros() {
     });
     const verdes = Object.values(net).filter(v => v > 0).length;
 
-    const cumplidas = funds.filter(f => f.goal && balanceOf(f) >= Number(f.goal)).length
+    const cumplidas = funds.filter(f => f.goal && !esCripto(f) && balanceOf(f) >= Number(f.goal)).length
                     + plans.filter(p => { const t = planTotals(p); return t.target > 0 && t.saved >= t.target; }).length;
 
     const salidas = all.filter(m => m.type === 'out').map(m => new Date(m.date).getTime());
@@ -1200,6 +1066,9 @@ function dialogFund(id = null) {
                 </button>`).join('')}
             </div>
         </div>
+        <!-- Solo para cripto: wallet, moneda y cantidad. Lo pinta pickPlace(). -->
+        <div id="fCripto" class="${(f?.place || 'efectivo') === 'cripto' ? '' : 'hidden'} space-y-4"></div>
+
         <div>
             <span class="label">Color de referencia</span>
             <div class="flex gap-2" id="fColor" data-v="${sel}">
@@ -1208,16 +1077,83 @@ function dialogFund(id = null) {
             </div>
         </div>
         ${f ? '' : `
-        <div>
+        <div id="fStartCaja">
             <label class="label" for="fStart">Saldo inicial <span class="hint">— lo que ya tienes guardado</span></label>
             <input id="fStart" class="field field-num" type="number" step="0.01" inputmode="decimal" placeholder="0.00">
         </div>`}
-        <div>
+        <div id="fGoalCaja">
             <label class="label" for="fGoal">Meta del fondo <span class="hint">— opcional</span></label>
             <input id="fGoal" class="field field-num" type="number" step="0.01" inputmode="decimal" placeholder="0.00" value="${f?.goal || ''}">
         </div>
         ${footerBtns(f ? 'save-fund-edit' : 'save-fund', f ? 'Guardar cambios' : 'Crear fondo', f?.id || '')}
     </div>`);
+    pintarCripto(f);
+}
+
+/**
+ * Campos extra cuando el fondo es de criptomoneda.
+ * El orden es el que se usa al pensarlo: primero dónde la tenés,
+ * después cuál moneda, y al final cuánta.
+ */
+function pintarCripto(f = null) {
+    const cont = $('#fCripto');
+    if (!cont) return;
+    const esC = $('#fPlace').dataset.v === 'cripto';
+    cont.classList.toggle('hidden', !esC);
+    /* Un fondo de cripto se mide en monedas, no en lempiras: saldo y meta no aplican. */
+    $('#fStartCaja')?.classList.toggle('hidden', esC);
+    $('#fGoalCaja')?.classList.toggle('hidden', esC);
+    if (!esC) { cont.innerHTML = ''; return; }
+    if (cont.dataset.pintado === '1') return;
+    cont.dataset.pintado = '1';
+
+    const lista = [...MONEDAS, ...buscadas.filter(b => !MONEDAS.some(m => m.id === b.id))];
+    const selMon = f?.coinId || 'bitcoin';
+    cont.innerHTML = `
+        <div>
+            <label class="label" for="cWallet">1. ¿En qué billetera la tenés?</label>
+            <select id="cWallet" class="field">
+                ${BILLETERAS.map(w => `<option value="${w}" ${f?.wallet === w ? 'selected' : ''}>${w}</option>`).join('')}
+            </select>
+        </div>
+        <div>
+            <label class="label" for="cMoneda">2. ¿Qué criptomoneda?</label>
+            <select id="cMoneda" class="field">
+                ${lista.map(m => `<option value="${m.id}" ${m.id === selMon ? 'selected' : ''}>${esc(m.sym)} · ${esc(m.nombre)}</option>`).join('')}
+            </select>
+            <div class="flex gap-2 mt-2.5">
+                <input id="cBuscar" class="field" style="flex:1" placeholder="¿No está? Buscala por nombre">
+                <button type="button" class="btn btn-outline btn-sm flex-none" data-act="cripto-buscar">Buscar</button>
+            </div>
+            <p class="hint mt-1.5" id="cBuscaMsg"></p>
+        </div>
+        ${f ? '' : `
+        <div>
+            <label class="label" for="cCant">3. ¿Cuánto tenés?</label>
+            <input id="cCant" class="field field-num" type="number" step="any" inputmode="decimal" placeholder="0.00532">
+            <p class="hint mt-1.5">En cantidad de monedas. Podés poner decimales.</p>
+        </div>`}`;
+}
+
+async function buscarEnGecko() {
+    const q = ($('#cBuscar').value || '').trim();
+    const msg = $('#cBuscaMsg');
+    if (q.length < 2) { msg.textContent = 'Escribí al menos 2 letras'; return; }
+    msg.textContent = 'Buscando...';
+    try {
+        const res = await buscarMoneda(q);
+        if (!res.length) { msg.textContent = 'No encontré nada con ese nombre'; return; }
+        buscadas = [...res, ...buscadas].slice(0, 30);
+        const sel = $('#cMoneda');
+        res.forEach(m => {
+            if ([...sel.options].some(o => o.value === m.id)) return;
+            const o = document.createElement('option');
+            o.value = m.id; o.textContent = `${m.sym} · ${m.nombre}`;
+            sel.insertBefore(o, sel.firstChild);
+        });
+        sel.value = res[0].id;
+        msg.textContent = `Encontré ${res.length}. Ya quedó seleccionada la primera.`;
+    } catch { msg.textContent = 'No se pudo buscar. Revisá tu conexión.'; }
 }
 
 function dialogMovement(fundId, type) {
@@ -1226,14 +1162,15 @@ function dialogMovement(fundId, type) {
     const inn = type === 'in';
     openDialog(`
     <h2 class="text-[17px] font-semibold mb-1">${inn ? 'Registrar ingreso' : 'Registrar retiro'}</h2>
-    <p class="text-[13px] mb-5" style="color: var(--ink-3);">${esc(f.name)} · saldo actual <span class="num">${money(balanceOf(f))}</span></p>
+    <p class="text-[13px] mb-5" style="color: var(--ink-3);">${esc(f.name)} · saldo actual <span class="num">${saldoTexto(f)}</span></p>
     <div class="space-y-4">
         <div>
-            <label class="label" for="mAmount">Monto</label>
-            <input id="mAmount" class="field field-num text-[19px] font-semibold" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00" data-autofocus>
+            <label class="label" for="mAmount">${esCripto(f) ? 'Cantidad de ' + esc(f.symbol || 'monedas') : 'Monto'}</label>
+            <input id="mAmount" class="field field-num text-[19px] font-semibold" type="number" step="${esCripto(f) ? 'any' : '0.01'}" min="0" inputmode="decimal" placeholder="${esCripto(f) ? '0.00532' : '0.00'}" data-autofocus>
             <div class="flex flex-wrap gap-1.5 mt-2">
                 ${[100, 500, 1000, 5000].map(v => `<button type="button" class="chip" data-act="set-amount" data-v="${v}">${v.toLocaleString('es-HN')}</button>`).join('')}
                 ${!inn && balanceOf(f) > 0 ? `<button type="button" class="chip" data-act="set-amount" data-v="${balanceOf(f)}">Todo el saldo</button>` : ''}
+                ${esCripto(f) ? `<span class="hint" style="width:100%;margin-top:2px">En cantidad de ${esc(f.symbol || 'monedas')}. Podés poner decimales.</span>` : ''}
             </div>
         </div>
         <div>
@@ -1274,8 +1211,8 @@ function dialogEditMovement(fundId, movId) {
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-                <label class="label" for="mAmount">Monto</label>
-                <input id="mAmount" class="field field-num" type="number" step="0.01" min="0" inputmode="decimal" value="${m.amount}" data-autofocus>
+                <label class="label" for="mAmount">${esCripto(f) ? 'Cantidad de ' + esc(f.symbol || 'monedas') : 'Monto'}</label>
+                <input id="mAmount" class="field field-num" type="number" step="${esCripto(f) ? 'any' : '0.01'}" min="0" inputmode="decimal" value="${m.amount}" data-autofocus>
             </div>
             <div>
                 <label class="label" for="mDate">Fecha</label>
@@ -1303,7 +1240,8 @@ function dialogEditMovement(fundId, movId) {
 function dialogTransfer(fromId) {
     const from = fromId || funds[0]?.id;
     const to = funds.find(f => f.id !== from)?.id;
-    const opts = (sel) => funds.map(f => `<option value="${f.id}" ${f.id === sel ? 'selected' : ''}>${esc(f.name)} — ${money(balanceOf(f))}</option>`).join('');
+    /* Los traspasos son entre fondos en lempiras; cripto no participa. */
+    const opts = (sel) => funds.filter(f => !esCripto(f)).map(f => `<option value="${f.id}" ${f.id === sel ? 'selected' : ''}>${esc(f.name)} — ${money(balanceOf(f))}</option>`).join('');
     openDialog(`
     <h2 class="text-[17px] font-semibold mb-5">Traspaso entre fondos</h2>
     <div class="space-y-4">
@@ -1391,7 +1329,7 @@ function pickFund(type) {
             return `<div class="list-row" data-act="mov" data-id="${f.id}" data-type="${type}">
                 <span class="mono-tile" style="background:${tint(c, .1)}; color:${c};">${esc(monogram(f.name))}</span>
                 <span class="flex-1 min-w-0 text-[14.5px] font-semibold truncate">${esc(f.name)}</span>
-                <span class="num text-[14.5px]">${money(balanceOf(f))}</span>
+                <span class="num text-[14.5px]">${saldoTexto(f)}</span>
             </div>`;
         }).join('')}
     </div>`);
@@ -1402,28 +1340,55 @@ function pickFund(type) {
    ============================================================ */
 const num = (sel) => { const v = parseFloat(($(sel)?.value || '').replace(',', '.')); return isNaN(v) ? 0 : v; };
 
+/** Lee los campos de cripto del formulario, si el lugar es cripto. */
+function datosCripto() {
+    if ($('#fPlace').dataset.v !== 'cripto' || !$('#cMoneda')) return null;
+    const coinId = $('#cMoneda').value;
+    const m = monedaPorId(coinId) || buscadas.find(b => b.id === coinId);
+    return { coinId, symbol: m?.sym || coinId.toUpperCase(), coinName: m?.nombre || coinId,
+             wallet: $('#cWallet')?.value || '' };
+}
+
 async function createFund() {
-    const name = ($('#fName').value || '').trim();
+    const place = $('#fPlace').dataset.v;
+    const cr = datosCripto();
+    if (place === 'cripto' && !cr?.coinId) { notice('Elegí una criptomoneda', 'neg'); return; }
+
+    /* En cripto el nombre se arma solo si lo dejás vacío: "BTC en Binance". */
+    let name = ($('#fName').value || '').trim();
+    if (!name && cr) name = `${cr.symbol} en ${cr.wallet}`;
     if (!name) { notice('Escribe el nombre del fondo', 'neg'); $('#fName').focus(); return; }
-    const inicial = num('#fStart'), goal = num('#fGoal');
+
+    /* Los fondos de cripto miden monedas, no lempiras: sin meta. */
+    const inicial = cr ? (parseFloat($('#cCant')?.value) || 0) : num('#fStart');
+    const goal = cr ? 0 : num('#fGoal');
+
     const data = {
-        name, color: $('#fColor').dataset.v, place: $('#fPlace').dataset.v, goal: goal > 0 ? goal : null,
+        name, color: $('#fColor').dataset.v, place, goal: goal > 0 ? goal : null,
         createdAt: new Date().toISOString(),
-        movements: inicial !== 0 ? [{ id: uid(), type: inicial > 0 ? 'in' : 'out', amount: Math.abs(inicial), category: 'Saldo inicial', note: 'Saldo inicial', date: new Date().toISOString() }] : []
+        movements: inicial !== 0 ? [{ id: uid(), type: inicial > 0 ? 'in' : 'out', amount: Math.abs(inicial), category: 'Saldo inicial', note: 'Saldo inicial', date: new Date().toISOString() }] : [],
+        ...(cr || {})
     };
     try {
         const ref = await addDoc(collection(db, FUNDS), data);
-        closeDialog(); notice('Fondo creado', 'pos'); go('fund', ref.id);
+        closeDialog(); notice('Fondo creado', 'pos');
+        if (cr) refrescarCripto(true);
+        go('fund', ref.id);
     } catch (e) { notice('No se pudo crear: ' + e.message, 'neg'); }
 }
 
 async function saveFundEdit(id) {
     const name = ($('#fName').value || '').trim();
     if (!name) { notice('Escribe el nombre del fondo', 'neg'); return; }
-    const goal = num('#fGoal');
+    const cr = datosCripto();
+    const goal = cr ? 0 : num('#fGoal');
     try {
-        await updateDoc(doc(db, FUNDS, id), { name, color: $('#fColor').dataset.v, place: $('#fPlace').dataset.v, goal: goal > 0 ? goal : null });
+        await updateDoc(doc(db, FUNDS, id), {
+            name, color: $('#fColor').dataset.v, place: $('#fPlace').dataset.v,
+            goal: goal > 0 ? goal : null, ...(cr || {})
+        });
         closeDialog(); notice('Fondo actualizado');
+        if (cr) refrescarCripto(true);
     } catch (e) { notice('No se pudo guardar: ' + e.message, 'neg'); }
 }
 
@@ -1579,98 +1544,6 @@ function exportFund(id) {
     notice('Archivo descargado');
 }
 
-/* ---------------- Cripto: formulario ---------------- */
-let buscadas = [];   // resultados de la búsqueda en CoinGecko
-
-function dialogCripto(c = null) {
-    const editando = !!c;
-    const lista = [...MONEDAS, ...buscadas.filter(b => !MONEDAS.some(m => m.id === b.id))];
-    const sel = c?.coinId || 'bitcoin';
-    openDialog(`
-        <h2 class="text-[19px] font-extrabold mb-1">${editando ? 'Editar moneda' : 'Agregar criptomoneda'}</h2>
-        <p class="text-[13.5px] mb-5" style="color:var(--ink-3)">Anotá cuánto tenés. El precio se consulta solo.</p>
-        <div class="space-y-4">
-            <div>
-                <label class="label" for="cMoneda">¿Cuál moneda?</label>
-                <select id="cMoneda" class="field">
-                    ${lista.map(m => `<option value="${m.id}" ${m.id === sel ? 'selected' : ''}>${esc(m.sym)} · ${esc(m.nombre)}</option>`).join('')}
-                </select>
-                <div class="flex gap-2 mt-2.5">
-                    <input id="cBuscar" class="field" style="flex:1" placeholder="¿No está? Buscala por nombre">
-                    <button type="button" class="btn btn-outline btn-sm flex-none" data-act="cripto-buscar">Buscar</button>
-                </div>
-                <p class="hint mt-1.5" id="cBuscaMsg"></p>
-            </div>
-            <div><label class="label" for="cCant">¿Cuánto tenés?</label>
-                <input id="cCant" class="field field-num" type="number" step="any" inputmode="decimal" placeholder="0.00532" value="${c ? c.amount : ''}">
-                <p class="hint mt-1.5">Podés poner decimales, por ejemplo 0.00532</p></div>
-            <div><label class="label" for="cWallet">¿En qué billetera?</label>
-                <select id="cWallet" class="field">
-                    ${BILLETERAS.map(w => `<option value="${w}" ${c?.wallet === w ? 'selected' : ''}>${w}</option>`).join('')}
-                </select></div>
-            <div><label class="label" for="cCosto">¿Cuánto invertiste en dólares? <span class="hint">— opcional</span></label>
-                <input id="cCosto" class="field field-num" type="number" step="0.01" inputmode="decimal" placeholder="0.00" value="${c?.cost || ''}">
-                <p class="hint mt-1.5">Si lo ponés, te muestro si vas ganando o perdiendo.</p></div>
-        </div>
-        ${dialogFooter(editando ? 'Guardar' : 'Agregar', editando ? `cripto-guardar" data-id="${c.id}` : 'cripto-guardar')}
-        ${editando ? `<button class="btn btn-danger btn-block mt-2.5" data-act="cripto-borrar" data-id="${c.id}">Quitar esta moneda</button>` : ''}`);
-    setTimeout(() => $('#cCant')?.focus(), 80);
-}
-
-async function buscarEnGecko() {
-    const q = ($('#cBuscar').value || '').trim();
-    const msg = $('#cBuscaMsg');
-    if (q.length < 2) { msg.textContent = 'Escribí al menos 2 letras'; return; }
-    msg.textContent = 'Buscando...';
-    try {
-        const res = await buscarMoneda(q);
-        if (!res.length) { msg.textContent = 'No encontré nada con ese nombre'; return; }
-        buscadas = [...res, ...buscadas].slice(0, 30);
-        const sel = $('#cMoneda');
-        res.forEach(m => {
-            if ([...sel.options].some(o => o.value === m.id)) return;
-            const o = document.createElement('option');
-            o.value = m.id; o.textContent = `${m.sym} · ${m.nombre}`;
-            sel.insertBefore(o, sel.firstChild);
-        });
-        sel.value = res[0].id;
-        msg.textContent = `Encontré ${res.length}. Ya está seleccionada la primera.`;
-    } catch { msg.textContent = 'No se pudo buscar. Revisá tu conexión.'; }
-}
-
-async function guardarCripto(id = null) {
-    const coinId = $('#cMoneda').value;
-    const amount = parseFloat($('#cCant').value) || 0;
-    if (!coinId)     return notice('Elegí una moneda', 'neg');
-    if (amount <= 0) return notice('La cantidad debe ser mayor que cero', 'neg');
-
-    const m = monedaPorId(coinId) || buscadas.find(b => b.id === coinId) || { sym: coinId.toUpperCase(), nombre: coinId };
-    const datos = {
-        coinId, symbol: m.sym, name: m.nombre,
-        amount, wallet: $('#cWallet').value || '',
-        cost: parseFloat($('#cCosto').value) || 0
-    };
-    try {
-        if (id) { await updateDoc(doc(db, COL.cripto, id), datos); notice('Moneda actualizada'); }
-        else    { await addDoc(collection(db, COL.cripto), { ...datos, createdAt: new Date().toISOString() }); notice('Moneda agregada', 'pos'); }
-        closeDialog();
-        refrescarCripto(true);
-    } catch (e) { notice('No se pudo guardar', 'neg'); console.error(e); }
-}
-
-async function borrarCripto(id) {
-    const c = cripto.find(x => x.id === id);
-    if (!c) return;
-    const sigue = await askConfirm({
-        titulo: `¿Quitar ${esc(c.name || c.symbol)}?`,
-        texto: 'Solo se borra el registro. Tus monedas siguen donde están.',
-        ok: 'Quitar', peligro: true
-    });
-    if (!sigue) return;
-    try { await deleteDoc(doc(db, COL.cripto, id)); closeDialog(); notice('Moneda quitada'); }
-    catch (e) { notice('No se pudo quitar', 'neg'); console.error(e); }
-}
-
 /* ============================================================
    EVENTOS
    ============================================================ */
@@ -1686,10 +1559,6 @@ document.addEventListener('click', (e) => {
         case 'close-dialog':  closeDialog(); break;
 
         /* Cripto */
-        case 'cripto-nueva':     dialogCripto(); break;
-        case 'cripto-editar':    dialogCripto(cripto.find(x => x.id === id)); break;
-        case 'cripto-guardar':   guardarCripto(id); break;
-        case 'cripto-borrar':    borrarCripto(id); break;
         case 'cripto-buscar':    buscarEnGecko(); break;
         case 'cripto-refrescar': refrescarCripto(false); break;
         case 'logros':        closeDialog(); go('logros'); break;
@@ -1809,10 +1678,6 @@ function subscribe() {
         boot(); render();
     }, (err) => { boot(); notice('Sin conexión con la nube', 'neg'); console.error(err); });
 
-    onSnapshot(query(collection(db, COL.cripto)), (snap) => {
-        cripto = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        if (route.view === 'cripto') { refrescarCripto(true); }
-    }, (err) => console.error(err));
     onSnapshot(query(collection(db, PLANS)), (snap) => {
         plans = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         boot(); render();

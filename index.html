@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Caudal">
 <script src="https://cdn.tailwindcss.com"></script>
-<link rel="stylesheet" href="theme.css?v=9">
+<link rel="stylesheet" href="theme.css?v=10">
 <script>(function(){var s=localStorage.getItem("mf-theme");document.documentElement.dataset.theme=s?s:(window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");})();</script>
 <style></style>
 </head>
@@ -97,11 +97,11 @@
 import { db, COL, leerCacheCripto, bottomNav, collection, doc, addDoc, onSnapshot, updateDoc, query, arrayUnion,
          $, esc, uid, money, money0, monogram, tint, notice, openDialog, closeDialog, askConfirm,
          num, dialogFooter, bootShell, saludo, swapView, countUp, cuotaDue, diasEntre, flong,
-         todayStr, dateToISO, LUGARES, rondaInfo, ESTADO_RONDA } from './core.js?v=9';
-import { analizar } from './analisis.js?v=9';
+         todayStr, dateToISO, LUGARES, rondaInfo, ESTADO_RONDA } from './core.js?v=10';
+import { analizar } from './analisis.js?v=10';
 
-const D = { fondos: [], metas: [], fiado: [], financiado: [], prestamos: [], rondas: [], personales: [], cripto: [], presupuesto: {}, cotCripto: null };
-let pend = 9, listo = false;
+const D = { fondos: [], metas: [], fiado: [], financiado: [], prestamos: [], rondas: [], personales: [], presupuesto: {}, cotCripto: null };
+let pend = 8, listo = false;
 
 /* ---------------- Métricas por módulo ---------------- */
 const movs = (f) => Array.isArray(f?.movements) ? f.movements : [];
@@ -538,7 +538,6 @@ bootShell({ onReady: () => {
     sub(COL.fondos, 'fondos'); sub(COL.metas, 'metas'); sub(COL.fiado, 'fiado');
     sub(COL.financiado, 'financiado'); sub(COL.prestamos, 'prestamos'); sub(COL.rondas, 'rondas');
     sub(COL.personales, 'personales');
-    sub(COL.cripto, 'cripto');
     onSnapshot(doc(db, COL.presupuesto, 'main'), (s) => {
         D.presupuesto = s.exists() ? s.data() : {};
         if (--pend <= 0) mostrar();

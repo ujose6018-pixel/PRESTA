@@ -65,15 +65,22 @@ El cálculo vive completo en `rondaInfo()` dentro de `core.js`, y lo usan `ronda
 
 ## Criptomonedas
 
-En `Ahorros › Cripto`. Se guarda **solo cuánto tenés y dónde**; los precios nunca tocan Firestore.
+Es un **tipo de fondo más**, no una sección aparte: `Ahorros › Fondos › Nuevo fondo › Criptomoneda`.
+El formulario pide billetera, moneda y cantidad, y a partir de ahí los depósitos y retiros funcionan
+igual que en cualquier otro fondo.
 
 ```js
-// crypto_holdings
-{ coinId: 'bitcoin', symbol: 'BTC', name: 'Bitcoin',
-  amount: 0.00532, wallet: 'Binance', cost: 250 }   // cost en USD, opcional
+// dentro de savings_funds
+{ name: 'BTC en Binance', place: 'cripto',
+  coinId: 'bitcoin', symbol: 'BTC', wallet: 'Binance',
+  movements: [ { type: 'in', amount: 0.005, ... } ] }   // ¡en MONEDAS, no en lempiras!
 ```
 
-**APIs, todas gratis y sin llave:**
+**Cuidado con esto:** en un fondo de cripto los `movements` están en cantidad de monedas.
+Sumarlos junto a los demás fondos daría que 0.005 BTC son L 0.005. Por eso todo lo que agregue
+saldos pasa por `fondoEnLempiras(f, saldo, cot)`, que valora solo si `place === 'cripto'`.
+
+**APIs, gratis y sin llave:**
 
 | Dato | Principal | Respaldo |
 |---|---|---|
@@ -81,19 +88,11 @@ En `Ahorros › Cripto`. Se guarda **solo cuánto tenés y dónde**; los precios
 | Dólar a lempira | exchange-api por jsDelivr | `open.er-api.com` |
 | Buscar monedas | CoinGecko `search` | — |
 
-CoinGecko público permite de 5 a 15 llamadas por minuto y la app hace **una sola**, con todas las
-monedas en la misma petición. El refresco es cada 60 segundos y se detiene cuando la pestaña no
-está a la vista, para no gastar batería ni cuota.
+Una sola llamada por minuto con todas las monedas juntas, y se detiene si la pestaña no está a la
+vista. Si falla la red, `cotizar()` devuelve el último precio guardado marcado `fresco: false`.
 
-**Cuando falla la red**, `cotizar()` nunca lanza: devuelve el último precio guardado en
-`localStorage` marcado con `fresco: false`, y la pantalla muestra de cuándo es el dato.
-
-**En el análisis**, la cripto cuenta completa en el patrimonio pero no como colchón de emergencia:
-
-- Estables (USDT, USDC, DAI): entran **completas**, siguen al dólar.
-- Volátiles: entran **a la mitad**, porque pueden caer justo el día que necesités la plata.
-
-El tipo de cambio es de mercado. En una casa de cambio dan menos, y la app lo dice en pantalla.
+**En el análisis:** la cripto queda fuera del ahorro estable (`ahorroTotal`) pero entra completa en
+el patrimonio. Como colchón de emergencia, las estables cuentan enteras y las volátiles a la mitad.
 
 ## Dos clases de deuda
 

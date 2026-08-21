@@ -3,14 +3,14 @@
    Puntúa 0-100 en cinco áreas usando los datos de todos los
    módulos. Es determinista: mismos datos, mismo resultado.
    ============================================================ */
-import { money, money0, cuotaDue, diasEntre, monthKey, isoToDate, rondaInfo, esTercero } from './core.js?v=9';
+import { money, money0, cuotaDue, diasEntre, monthKey, isoToDate, rondaInfo, esTercero } from './core.js?v=10';
 
 const cl = (v, a = 0, b = 100) => Math.min(b, Math.max(a, v));
 /** Interpola lineal entre dos puntos y recorta a 0-100. */
 const escala = (v, malo, bueno) => cl(((v - malo) / (bueno - malo)) * 100);
 
 export function analizar(D) {
-    const { fondos = [], metas = [], fiado = [], financiado = [], presupuesto = {}, prestamos = [], rondas = [], personales = [], cripto = [], cotCripto = null } = D;
+    const { fondos = [], metas = [], fiado = [], financiado = [], presupuesto = {}, prestamos = [], rondas = [], personales = [], cotCripto = null } = D;
 
     /* --- Bases --- */
     const movs = (f) => Array.isArray(f?.movements) ? f.movements : [];
@@ -24,15 +24,22 @@ export function analizar(D) {
     const cuotaRondas  = rondasDeuda.reduce((a, i) => a + i.cuota * 4.33, 0);   // semanal -> mensual
     const rondasAtrasadas = infoRondas.filter(i => !i.terminada && i.prox && i.prox.estado === 'late').length;
 
-    /* Reparto por lugar: efectivo, banca, cuenta de ahorro, billetera */
+    const esFondoCripto = (f) => f.place === 'cripto';
+    /* Cripto se mide en monedas: para repartir por lugar hay que valorarla. */
+    const enLps = (f) => esFondoCripto(f)
+        ? saldoFondo(f) * (Number(cotCripto?.usd?.[f.coinId]?.usd) || 0) * (Number(cotCripto?.hnl) || 0)
+        : saldoFondo(f);
+
+    /* Reparto por lugar: efectivo, banca, cuenta de ahorro, billetera, cripto */
     const porLugar = {};
-    fondos.forEach(f => { const k = f.place || 'efectivo'; porLugar[k] = (porLugar[k] || 0) + saldoFondo(f); });
-    const enFondos = fondos.reduce((a, f) => a + saldoFondo(f), 0);
+    fondos.forEach(f => { const k = f.place || 'efectivo'; porLugar[k] = (porLugar[k] || 0) + enLps(f); });
+    const enFondos = fondos.reduce((a, f) => a + enLps(f), 0);
     const enEfectivo = porLugar.efectivo || 0;
     const bancarizado = enFondos > 0 ? 1 - enEfectivo / enFondos : 0;
 
+    /* Los fondos de cripto NO entran en el ahorro estable: se valoran aparte. */
     const ahorroTotal = ahorroRondas
-        + fondos.reduce((a, f) => a + saldoFondo(f), 0)
+        + fondos.filter(f => !esFondoCripto(f)).reduce((a, f) => a + saldoFondo(f), 0)
         + metas.reduce((a, p) => a + (p.type === 'challenge'
             ? (p.savedItems || []).reduce((x, n) => x + Number(n), 0)
             : (p.deposits || []).reduce((x, d) => x + Number(d.amount || 0), 0)), 0);
@@ -126,15 +133,16 @@ export function analizar(D) {
        Cuentan completas en el patrimonio, pero NO como colchón de
        emergencia: una moneda volátil puede caer 30% justo el día que
        la necesitás. Las estables sí, porque siguen al dólar. */
-    const precioDe   = (id) => Number(cotCripto?.usd?.[id]?.usd) || 0;
-    const valorCripto = (c) => (Number(c.amount) || 0) * precioDe(c.coinId);
+    const precioDe = (id) => Number(cotCripto?.usd?.[id]?.usd) || 0;
     const ESTABLES = ['tether', 'usd-coin', 'dai', 'first-digital-usd', 'true-usd', 'binance-usd'];
-    const criptoUSD    = cripto.reduce((a, c) => a + valorCripto(c), 0);
-    const criptoEstUSD = cripto.filter(c => ESTABLES.includes(c.coinId)).reduce((a, c) => a + valorCripto(c), 0);
+    const fCripto = fondos.filter(esFondoCripto);
+    const usdDe   = (f) => saldoFondo(f) * precioDe(f.coinId);
+    const criptoUSD    = fCripto.reduce((a, f) => a + usdDe(f), 0);
+    const criptoEstUSD = fCripto.filter(f => ESTABLES.includes(f.coinId)).reduce((a, f) => a + usdDe(f), 0);
     const criptoVolUSD = criptoUSD - criptoEstUSD;
     const tasaHNL      = Number(cotCripto?.hnl) || 0;
     const criptoLps    = criptoUSD * tasaHNL;
-    const criptoSinPrecio = cripto.length > 0 && criptoUSD === 0;
+    const criptoSinPrecio = fCripto.length > 0 && criptoUSD === 0;
 
     /* Descuento por volatilidad: la estable entra entera, la volátil a la mitad. */
     const criptoColchon = (criptoEstUSD + criptoVolUSD * 0.5) * tasaHNL;
@@ -336,7 +344,7 @@ export function analizar(D) {
                   administraAlgo: capitalAdministrado > 0 || fiadoAjeno > 0,
                   interesMensual, proxCobro, cuotasVencidasP, capitalEnMora,
                   concentracion, saludCobro, nPrestamos: vivos.length, hayCartera,
-                  criptoUSD, criptoLps, criptoEstUSD, criptoVolUSD, tasaHNL, nCripto: cripto.length, criptoSinPrecio,
+                  criptoUSD, criptoLps, criptoEstUSD, criptoVolUSD, tasaHNL, nCripto: fCripto.length, criptoSinPrecio,
                   patrimonio: ahorroTotal + capitalPrestado + criptoLps - deudaTotal }
     };
 }
